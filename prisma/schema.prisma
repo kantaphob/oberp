@@ -1,11 +1,5 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
-  provider = "prisma-client"
+  provider = "prisma-client-js"
   output   = "../app/generated/prisma"
 }
 
@@ -14,109 +8,371 @@ datasource db {
 }
 
 // ============================================================================
-// Classification (การจัดโครงสร้างองค์กร)
+// 👑 หมวด ALPHA & OMEGA (Core Structure & RBAC)
 // ============================================================================
+
 model Department {
-  id   String @id @default(uuid())
-  name String @unique // เพิ่ม @unique ป้องกันชื่อแผนกซ้ำ
-  code String @unique // เพิ่ม @unique เช่น "OP", "FIN"
+  id           String        @id @default(uuid())
+  name         String        @unique
+  code         String        @unique
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  roles        JobRole[]
+  userProfiles UserProfile[]
 
-  roles JobRole[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("departments")
+  @@map("core_departments")
 }
 
 model JobLine {
-  id   String @id @default(uuid())
-  name String @unique
-  code String @unique // เช่น "ENG", "ARC"
+  id        String    @id @default(uuid())
+  name      String    @unique
+  code      String    @unique
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  roles     JobRole[]
 
-  positions JobRole[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("job_lines")
+  @@map("core_job_lines")
 }
 
 model JobRole {
-  id   String @id @default(uuid())
-  name String @unique // เช่น "Foreman", "Project Manager"
-
-  // 🌟 เพิ่ม 2 ฟิลด์นี้เข้ามาเพื่อให้ระบบสมบูรณ์ 🌟
-  prefix String @unique // ตัวย่อสร้าง Username เช่น "FM", "PM"
+  id     String @id @default(uuid())
+  name   String @unique
+  prefix String @unique
   level  Int    @default(10)
 
-  department   Department? @relation(fields: [departmentId], references: [id])
   departmentId String?
+  jobLineId    String?
 
-  jobLine   JobLine? @relation(fields: [jobLineId], references: [id])
-  jobLineId String?
+  // --- ระบบลำดับชั้น (Hierarchy) ---
+  parentRoleId   String? // ID ของตำแหน่งหัวหน้า
+  parentRole     JobRole?  @relation("RoleHierarchy", fields: [parentRoleId], references: [id])
+  assistantRoles JobRole[] @relation("RoleHierarchy")
 
-  permissions Permission[]
-  users       User[]
+  department   Department?   @relation(fields: [departmentId], references: [id])
+  jobLine      JobLine?      @relation(fields: [jobLineId], references: [id])
+  permissions  Permission[]
+  userProfiles UserProfile[]
+  users        User[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("job_positions")
+  @@map("core_job_roles")
 }
 
-// ============================================================================
-// Authorization & Users (สิทธิ์การเข้าถึง และ ข้อมูลพนักงาน)
-// ============================================================================
 model Permission {
-  id String @id @default(uuid())
+  id        String  @id @default(uuid())
+  roleId    String
+  menuId    String
+  canRead   Boolean @default(false)
+  canWrite  Boolean @default(false)
+  canDelete Boolean @default(false)
+  role      JobRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
-  // เชื่อมกับ ตำแหน่ง (Role)
-  roleId String
-  role   JobRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
-
-  // รหัสเมนู (ต้องตรงกับในไฟล์ menuGroups.ts) เช่น "project-report", "accounting-billing"
-  menuId String
-
-  // หน้าที่และสิทธิ์ในหน้านั้นๆ
-  canRead   Boolean @default(false) // เข้าดูได้ (เมนูจะโชว์ใน Sidebar)
-  canWrite  Boolean @default(false) // เพิ่ม/แก้ไข ข้อมูลได้
-  canDelete Boolean @default(false) // ลบข้อมูลได้
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // ป้องกันการใส่สิทธิ์เมนูซ้ำกันในตำแหน่งเดียว
   @@unique([roleId, menuId])
-  @@map("permissions")
-}
-
-// User Status
-enum UserStatus {
-  ACTIVE // พนักงานที่กำลังปฏิบัติงานอยู่
-  INACTIVE // บัญชีที่ถูกปิดการใช้งานชั่วคราว
-  SUSPENDED // ถูกพักงาน หรืออยู่ระหว่างการสอบสวนทางวินัย
-  DELETED // การลบข้อมูลทิ้ง (Soft Delete)
-  TERMINATED // ลาออก, หมดสัญญาจ้าง, หรือเลิกจ้าง
-  LOCKED // ถูกล็อกเนื่องจากเหตุผลด้านความปลอดภัย
-  PENDING // บัญชีเพิ่งถูกสร้างขึ้นมาใหม่
-  APPROVED // ผ่านการตรวจสอบเรียบร้อย
+  @@map("core_permissions")
 }
 
 model User {
-  id           String  @id @default(uuid())
-  username     String  @unique // ระบบจะสร้างให้ เช่น "FM-001"
+  id           String     @id @default(uuid())
+  username     String     @unique
   passwordHash String
-  email        String? @unique // แนะนำให้ unique เผื่อใช้ล็อกอินทางเลือกด้วยอีเมล
+  email        String?    @unique
+  status       UserStatus @default(ACTIVE)
+  roleId       String
 
-  status UserStatus @default(ACTIVE)
+  profile UserProfile?
+  role    JobRole      @relation(fields: [roleId], references: [id])
 
-  // เชื่อมความสัมพันธ์กับตาราง Role (ตำแหน่ง)
-  roleId String
-  role   JobRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  // Relations การทำธุรกรรมต่างๆ
+  attendances      Attendance[]
+  projects         Project[]         @relation("ProjectManager")
+  tasks            Task[]            @relation("TaskAssignee")
+  leaveRequests    LeaveRequest[]
+  purchaseRequests PurchaseRequest[] @relation("PRRequester") // เติมชื่อ Relation ให้ตรงกัน
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@map("users")
+  @@map("core_users")
+}
+
+model UserProfile {
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  taxId           String  @unique @db.VarChar(13)
+  firstName       String
+  lastName        String
+  telephoneNumber String  @unique @db.VarChar(10)
+  lineId          String?
+
+  addressDetail String
+  subdistrictId Int?
+  districtId    Int?
+  provinceId    Int?
+  zipcode       String? @db.VarChar(5)
+
+  departmentId String
+  roleId       String
+  image        String?
+
+  department  Department   @relation(fields: [departmentId], references: [id])
+  role        JobRole      @relation(fields: [roleId], references: [id])
+  province    Province?    @relation(fields: [provinceId], references: [id])
+  district    District?    @relation(fields: [districtId], references: [id])
+  subdistrict Subdistrict? @relation(fields: [subdistrictId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("core_user_profiles")
+}
+
+// ============================================================================
+// 📍 หมวด MASTER DATA (ข้อมูลที่อยู่ประเทศไทย)
+// ============================================================================
+
+model Province {
+  id           Int           @id
+  nameTh       String        @map("name_th")
+  nameEn       String?       @map("name_en")
+  districts    District[]
+  userProfiles UserProfile[]
+
+  @@map("provinces")
+}
+
+model District {
+  id         Int      @id
+  provinceId Int      @map("province_id")
+  province   Province @relation(fields: [provinceId], references: [id], onDelete: Cascade)
+
+  nameTh       String        @map("name_th")
+  nameEn       String?       @map("name_en")
+  subdistricts Subdistrict[]
+  userProfiles UserProfile[]
+
+  @@map("districts")
+}
+
+model Subdistrict {
+  id         Int      @id
+  districtId Int      @map("district_id")
+  district   District @relation(fields: [districtId], references: [id], onDelete: Cascade)
+
+  nameTh       String        @map("name_th")
+  nameEn       String?       @map("name_en")
+  lat          Float?
+  lng          Float?        @map("long")
+  zipcode      Int?
+  userProfiles UserProfile[]
+
+  @@map("subdistricts")
+}
+
+// ============================================================================
+// 👥 หมวด HRM (บุคคลและการเข้างาน)
+// ============================================================================
+
+model Attendance {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  date        DateTime       @db.Date
+  checkIn     DateTime?
+  checkOut    DateTime?
+  type        AttendanceType @default(PRESENT)
+  locationLat Float?
+  locationLng Float?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("hrm_attendances")
+}
+
+model LeaveRequest {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type      LeaveType   @default(PERSONAL_LEAVE)
+  startDate DateTime    @db.Date
+  endDate   DateTime    @db.Date
+  reason    String
+  status    LeaveStatus @default(PENDING)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("hrm_leave_requests")
+}
+
+// ============================================================================
+// 🏗️ หมวด OPERATIONS (ระบบโปรเจกต์และงานหน้าไซต์)
+// ============================================================================
+
+model Project {
+  id       String        @id @default(uuid())
+  code     String        @unique
+  name     String
+  location String?
+  status   ProjectStatus @default(PLANNING)
+
+  managerId String?
+  manager   User?   @relation("ProjectManager", fields: [managerId], references: [id])
+
+  tasks            Task[]
+  siteReports      DailySiteReport[]
+  purchaseRequests PurchaseRequest[]
+
+  startDate DateTime?
+  endDate   DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@map("ops_projects")
+}
+
+model Task {
+  id        String  @id @default(uuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  title  String
+  status TaskStatus @default(TODO)
+
+  assigneeId String?
+  assignee   User?   @relation("TaskAssignee", fields: [assigneeId], references: [id])
+
+  dueDate   DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@map("ops_tasks")
+}
+
+model DailySiteReport {
+  id        String  @id @default(uuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  reportDate  DateTime @db.Date
+  weather     String?
+  workerCount Int      @default(0)
+  progress    String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("ops_daily_site_reports")
+}
+
+// ============================================================================
+// 🛒 หมวด PROCUREMENT (จัดซื้อและคลังสินค้า)
+// ============================================================================
+
+model PurchaseRequest {
+  id       String         @id @default(uuid())
+  prNumber String         @unique
+  status   DocumentStatus @default(DRAFT)
+
+  // เชื่อมกับโปรเจกต์และผู้ขอ
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id])
+
+  requesterId String
+  requester   User   @relation("PRRequester", fields: [requesterId], references: [id])
+
+  items   Json
+  remarks String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("pro_purchase_requests")
+}
+
+// ============================================================================
+// 🔴 ENUMS (สถานะทั้งหมดในระบบ)
+// ============================================================================
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  ON_LEAVE
+  RESIGNED
+  TERMINATED
+  LOCKED
+  PENDING
+}
+
+enum AttendanceType {
+  PRESENT
+  LATE
+  ABSENT
+  LEAVE
+  HALFDAY
+  OVERTIME
+  HOLIDAY
+  WFH
+}
+
+enum LeaveType {
+  SICK_LEAVE
+  PERSONAL_LEAVE
+  ANNUAL_LEAVE
+  MATERNITY
+  ORDINATION
+  UNPAID_LEAVE
+}
+
+enum LeaveStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum ProjectStatus {
+  BIDDING
+  PLANNING
+  IN_PROGRESS
+  ON_HOLD
+  HANDOVER
+  WARRANTY
+  COMPLETED
+  CANCELLED
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  BLOCKED
+  IN_REVIEW
+  REWORK
+  DONE
+}
+
+enum DefectStatus {
+  REPORTED
+  INSPECTING
+  FIXING
+  RESOLVED
+  REJECTED
+  CLOSED
+}
+
+enum DocumentStatus {
+  DRAFT
+  WAITING_APPROVAL
+  APPROVED
+  REVISED
+  REJECTED
+  ORDERING
+  PARTIAL_RECEIVED
+  COMPLETED
+  CANCELLED
 }
