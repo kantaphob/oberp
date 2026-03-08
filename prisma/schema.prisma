@@ -12,3 +12,111 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+// ============================================================================
+// Classification (การจัดโครงสร้างองค์กร)
+// ============================================================================
+model Department {
+  id   String @id @default(uuid())
+  name String @unique // เพิ่ม @unique ป้องกันชื่อแผนกซ้ำ
+  code String @unique // เพิ่ม @unique เช่น "OP", "FIN"
+
+  roles JobRole[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("departments")
+}
+
+model JobLine {
+  id   String @id @default(uuid())
+  name String @unique
+  code String @unique // เช่น "ENG", "ARC"
+
+  positions JobRole[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("job_lines")
+}
+
+model JobRole {
+  id   String @id @default(uuid())
+  name String @unique // เช่น "Foreman", "Project Manager"
+
+  // 🌟 เพิ่ม 2 ฟิลด์นี้เข้ามาเพื่อให้ระบบสมบูรณ์ 🌟
+  prefix String @unique // ตัวย่อสร้าง Username เช่น "FM", "PM"
+  level  Int    @default(10)
+
+  department   Department? @relation(fields: [departmentId], references: [id])
+  departmentId String?
+
+  jobLine   JobLine? @relation(fields: [jobLineId], references: [id])
+  jobLineId String?
+
+  permissions Permission[]
+  users       User[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("job_positions")
+}
+
+// ============================================================================
+// Authorization & Users (สิทธิ์การเข้าถึง และ ข้อมูลพนักงาน)
+// ============================================================================
+model Permission {
+  id String @id @default(uuid())
+
+  // เชื่อมกับ ตำแหน่ง (Role)
+  roleId String
+  role   JobRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  // รหัสเมนู (ต้องตรงกับในไฟล์ menuGroups.ts) เช่น "project-report", "accounting-billing"
+  menuId String
+
+  // หน้าที่และสิทธิ์ในหน้านั้นๆ
+  canRead   Boolean @default(false) // เข้าดูได้ (เมนูจะโชว์ใน Sidebar)
+  canWrite  Boolean @default(false) // เพิ่ม/แก้ไข ข้อมูลได้
+  canDelete Boolean @default(false) // ลบข้อมูลได้
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // ป้องกันการใส่สิทธิ์เมนูซ้ำกันในตำแหน่งเดียว
+  @@unique([roleId, menuId])
+  @@map("permissions")
+}
+
+// User Status
+enum UserStatus {
+  ACTIVE // พนักงานที่กำลังปฏิบัติงานอยู่
+  INACTIVE // บัญชีที่ถูกปิดการใช้งานชั่วคราว
+  SUSPENDED // ถูกพักงาน หรืออยู่ระหว่างการสอบสวนทางวินัย
+  DELETED // การลบข้อมูลทิ้ง (Soft Delete)
+  TERMINATED // ลาออก, หมดสัญญาจ้าง, หรือเลิกจ้าง
+  LOCKED // ถูกล็อกเนื่องจากเหตุผลด้านความปลอดภัย
+  PENDING // บัญชีเพิ่งถูกสร้างขึ้นมาใหม่
+  APPROVED // ผ่านการตรวจสอบเรียบร้อย
+}
+
+model User {
+  id           String  @id @default(uuid())
+  username     String  @unique // ระบบจะสร้างให้ เช่น "FM-001"
+  passwordHash String
+  email        String? @unique // แนะนำให้ unique เผื่อใช้ล็อกอินทางเลือกด้วยอีเมล
+
+  status UserStatus @default(ACTIVE)
+
+  // เชื่อมความสัมพันธ์กับตาราง Role (ตำแหน่ง)
+  roleId String
+  role   JobRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
