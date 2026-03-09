@@ -298,81 +298,82 @@ model PurchaseRequest {
 // ============================================================================
 
 enum UserStatus {
-  ACTIVE
-  INACTIVE
-  SUSPENDED
-  ON_LEAVE
-  RESIGNED
-  TERMINATED
-  LOCKED
-  PENDING
+  ACTIVE // ใช้งาน
+  INACTIVE // ไม่ใช้งาน
+  SUSPENDED // ระงับการใช้งาน
+  ON_LEAVE // ลา
+  RESIGNED // ลาออก
+  TERMINATED // เลิกจ้าง
+  LOCKED // ล็อค
+  PENDING //รอสถานะ
 }
 
 enum AttendanceType {
-  PRESENT
-  LATE
-  ABSENT
-  LEAVE
-  HALFDAY
-  OVERTIME
-  HOLIDAY
-  WFH
+  PRESENT //มาทำงาน
+  LATE //สาย
+  ABSENT //ขาดงาน
+  LEAVE //ลา
+  HALFDAY //ครึ่งวัน
+  OVERTIME //โอที
+  HOLIDAY //วันหยุด
+  WFH //ทำงานที่บ้าน
+  ONSITE //ทำงานนอกสถานที่
 }
 
 enum LeaveType {
-  SICK_LEAVE
-  PERSONAL_LEAVE
-  ANNUAL_LEAVE
-  MATERNITY
-  ORDINATION
-  UNPAID_LEAVE
+  SICK_LEAVE //ลาป่วย
+  PERSONAL_LEAVE //ลากิจ
+  ANNUAL_LEAVE //ลาพักร้อน
+  MATERNITY //ลาคลอด
+  ORDINATION //ลาบวช
+  UNPAID_LEAVE //ลาไม่มีเงินเดือน
 }
 
 enum LeaveStatus {
-  DRAFT
-  PENDING
-  APPROVED
-  REJECTED
-  CANCELLED
+  DRAFT // ร่าง
+  PENDING // รออนุมัติ
+  APPROVED // อนุมัติ
+  REJECTED // ไม่อนุมัติ
+  CANCELLED // ยกเลิก
 }
 
 enum ProjectStatus {
-  BIDDING
-  PLANNING
-  IN_PROGRESS
-  ON_HOLD
-  HANDOVER
-  WARRANTY
-  COMPLETED
-  CANCELLED
+  BIDDING // กำลังประมูล
+  PLANNING // กำลังวางแผน
+  IN_PROGRESS // กำลังดำเนินการ
+  ON_HOLD // หยุดชั่วคราว
+  HANDOVER // ส่งมอบงาน
+  WARRANTY // รับประกัน
+  COMPLETED // เสร็จสิ้น
+  CANCELLED // ยกเลิก
 }
 
 enum TaskStatus {
-  TODO
-  IN_PROGRESS
-  BLOCKED
-  IN_REVIEW
-  REWORK
-  DONE
+  TODO // ยังไม่เริ่ม
+  IN_PROGRESS // กำลังดำเนินการ
+  BLOCKED // ติดปัญหา
+  IN_REVIEW // กำลังตรวจสอบ
+  REWORK // ต้องแก้ไข
+  DONE // เสร็จสิ้น
 }
 
 enum DefectStatus {
-  REPORTED
-  INSPECTING
-  FIXING
-  RESOLVED
-  REJECTED
-  CLOSED
+  REPORTED // แจ้ง
+  INSPECTING // ตรวจสอบ
+  FIXING // แก้ไข
+  RESOLVED // แก้ไขแล้ว
+  REJECTED // ปฏิเสธ
+  CLOSED // ปิด
 }
 
 enum DocumentStatus {
-  DRAFT
-  WAITING_APPROVAL
-  APPROVED
-  REVISED
-  REJECTED
-  ORDERING
-  PARTIAL_RECEIVED
-  COMPLETED
-  CANCELLED
+  DRAFT // ร่าง
+  WAITING_APPROVAL // รออนุมัติ
+  APPROVED // อนุมัติ
+  REVISED // แก้ไข
+  REJECTED // ปฏิเสธ
+  ORDERING // กำลังสั่งซื้อ
+  PARTIAL_RECEIVED // รับบางส่วน
+  COMPLETED // เสร็จสิ้น
+  CANCELLED // ยกเลิก
 }

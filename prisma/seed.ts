@@ -1,10 +1,10 @@
 import 'dotenv/config';
-process.env.DATABASE_URL = process.env.DIRECT_URL;
 import { PrismaClient } from '../app/generated/prisma';
 import fs from 'fs';
 import path from 'path';
 
-const prisma = new PrismaClient();
+
+const prisma = new PrismaClient({ accelerateUrl: process.env.DATABASE_URL });
 
 async function parseProvinces() {
   const data = fs.readFileSync(path.join(__dirname, 'db/province.sql'), 'utf8');
