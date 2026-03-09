@@ -68,11 +68,41 @@ export const MENU_DATA: MenuGroup[] = [
           },
           { name: "JobLine", href: "/dashboard/omega/Classification/JobLine" },
           { name: "JobRole", href: "/dashboard/omega/Classification/JobRole" },
+        ],
+      },
+      {
+        id: "BOQ",
+        title: "BOQ",
+        icon: "Database",
+        subMenus: [
           {
-            name: "Postcode",
-            href: "/dashboard/omega/Classification/postcode",
+            name: "Unit",
+            href: "/dashboard/omega/BOQ/Unit",
           },
-          { name: "Permission", href: "/dashboard/omega/Permission" },
+          {
+            name: "WBSGroup",
+            href: "/dashboard/omega/BOQ/WBSGroup",
+          },
+
+          {
+            name: "MaterialCategory",
+            href: "/dashboard/omega/BOQ/MaterialCategory",
+          },
+          {
+            name: "MaterialCatalog",
+            href: "/dashboard/omega/BOQ/MaterialCatalog",
+          },
+        ],
+      },
+      {
+        id: "Permission",
+        title: "Permission",
+        icon: "ShieldCheck",
+        subMenus: [
+          {
+            name: "Permission",
+            href: "/dashboard/omega/Permission",
+          },
         ],
       },
     ],
