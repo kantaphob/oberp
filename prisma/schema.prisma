@@ -117,9 +117,12 @@ model User {
 }
 
 model UserProfile {
-  id     String @id @default(uuid())
-  userId String @unique
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id          String    @id @default(uuid())
+  userId      String    @unique
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  birthDate   DateTime?
+  gender      String?
+  nationality String?
 
   taxId           String  @unique @db.VarChar(13)
   firstName       String
@@ -142,6 +145,8 @@ model UserProfile {
   province    Province?    @relation(fields: [provinceId], references: [id])
   district    District?    @relation(fields: [districtId], references: [id])
   subdistrict Subdistrict? @relation(fields: [subdistrictId], references: [id])
+
+  startDate DateTime @default(now())
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
