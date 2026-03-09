@@ -10,6 +10,17 @@ datasource db {
 // ============================================================================
 // 👑 หมวด ALPHA & OMEGA (Core Structure & RBAC)
 // ============================================================================
+model Service {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  code        String   @unique
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("core_services")
+}
 
 model Department {
   id           String        @id @default(uuid())
@@ -234,8 +245,9 @@ model MaterialCatalog {
   unitId String
   unit   Unit   @relation(fields: [unitId], references: [id])
 
-  unitPrice  Float @default(0)
-  laborPrice Float @default(0)
+  costType   CostType @default(MATERIAL)
+  unitPrice  Float    @default(0)
+  laborPrice Float    @default(0)
 
   isActive Boolean @default(true)
 
@@ -476,26 +488,26 @@ model Customer {
 // ============================================================================
 
 enum UserStatus {
-  ACTIVE
-  INACTIVE
-  SUSPENDED
-  ON_LEAVE
-  RESIGNED
-  TERMINATED
-  LOCKED
-  PENDING
+  ACTIVE // ใช้งาน
+  INACTIVE // ไม่ใช้งาน
+  SUSPENDED // ระงับ
+  ON_LEAVE // ลา
+  RESIGNED // ลาออก
+  TERMINATED // ถูกสิ้นสุด
+  LOCKED // ถูกล็อก
+  PENDING // รอ
 }
 
 enum AttendanceType {
-  PRESENT
-  LATE
-  ABSENT
-  LEAVE
-  HALFDAY
-  OVERTIME
-  HOLIDAY
-  WFH
-  ONSITE
+  PRESENT // 
+  LATE // สาย
+  ABSENT // ขาด
+  LEAVE // ลา
+  HALFDAY // ครึ่งวัน
+  OVERTIME // ล่วงเวลา
+  HOLIDAY // หยุด
+  WFH // ทำงานบ้าน
+  ONSITE // ทำงานที่สถานที่
 }
 
 enum LeaveType {
@@ -554,4 +566,12 @@ enum DocumentStatus {
   PARTIAL_RECEIVED
   COMPLETED
   CANCELLED
+}
+
+enum CostType {
+  MATERIAL // (M) ค่าวัสดุ
+  LABOR // (L) ค่าแรงช่าง/พนักงาน
+  EQUIPMENT // (E) ค่าเครื่องจักร/เครื่องมือ
+  SUBCONTRACTOR // (S) ค่าจ้างเหมาช่วง (รวมของ+แรง)
+  SERVICE // (F) ค่าบริการ/ค่าดำเนินการ/ที่ปรึกษา
 }

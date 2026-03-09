@@ -71,26 +71,37 @@ export const MENU_DATA: MenuGroup[] = [
         ],
       },
       {
+        id: "Services",
+        title: "Services",
+        icon: "House",
+        subMenus: [
+          {
+            name: "Permission",
+            href: "/dashboard/omega/servides",
+          },
+        ],
+      },
+      {
         id: "BOQ",
         title: "BOQ",
         icon: "Database",
         subMenus: [
           {
             name: "Unit",
-            href: "/dashboard/omega/BOQ/Unit",
+            href: "/dashboard/omega/boq/Unit",
           },
           {
             name: "WBSGroup",
-            href: "/dashboard/omega/BOQ/WBSGroup",
+            href: "/dashboard/omega/boq/WBSGroup",
           },
 
           {
             name: "MaterialCategory",
-            href: "/dashboard/omega/BOQ/MaterialCategory",
+            href: "/dashboard/omega/boq/MaterialCategory",
           },
           {
             name: "MaterialCatalog",
-            href: "/dashboard/omega/BOQ/MaterialCatalog",
+            href: "/dashboard/omega/boq/MaterialCatalog",
           },
         ],
       },
