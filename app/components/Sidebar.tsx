@@ -76,8 +76,8 @@ export const MENU_DATA: MenuGroup[] = [
         icon: "House",
         subMenus: [
           {
-            name: "Permission",
-            href: "/dashboard/omega/servides",
+            name: "Services",
+            href: "/dashboard/omega/service",
           },
         ],
       },
@@ -102,6 +102,17 @@ export const MENU_DATA: MenuGroup[] = [
           {
             name: "MaterialCatalog",
             href: "/dashboard/omega/boq/MaterialCatalog",
+          },
+        ],
+      },
+      {
+        id: "Postcode",
+        title: "Postcode",
+        icon: "MapPin",
+        subMenus: [
+          {
+            name: "Postcode",
+            href: "/dashboard/omega/Classification/postcode",
           },
         ],
       },

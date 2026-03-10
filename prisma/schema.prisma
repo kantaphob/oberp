@@ -10,14 +10,18 @@ datasource db {
 // ============================================================================
 // 👑 หมวด ALPHA & OMEGA (Core Structure & RBAC)
 // ============================================================================
-model Service {
-  id          String   @id @default(uuid())
-  name        String   @unique
-  code        String   @unique
+model ServiceUs {
+  id          String  @id @default(uuid())
+  name        String  @unique
+  code        String  @unique
   description String?
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  isActive    Boolean @default(true)
+
+  // 🌟 เพิ่มการเชื่อมโยง: 1 บริการหลัก มีได้หลายโปรเจกต์
+  projects Project[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("core_services")
 }
@@ -335,6 +339,8 @@ model Project {
 
   projectType   ProjectType? @relation(fields: [projectTypeId], references: [id])
   projectTypeId String?
+  serviceUs     ServiceUs?   @relation(fields: [serviceUsId], references: [id])
+  serviceUsId   String?
 
   @@map("ops_projects")
 }
