@@ -12,6 +12,7 @@
   "dependencies": {
     "@prisma/client": "^7.4.2",
     "auth": "^1.5.4",
+    "bcrypt": "^6.0.0",
     "dotenv": "^17.3.1",
     "framer-motion": "^12.35.1",
     "lucide-react": "^0.577.0",
@@ -25,6 +26,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/bcrypt": "^6.0.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

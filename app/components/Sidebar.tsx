@@ -130,6 +130,35 @@ export const MENU_DATA: MenuGroup[] = [
     ],
   },
   {
+    groupName: "Administrator",
+    accentDot: "bg-orange-600",
+    themeClass: {
+      activeBg: "bg-orange-50",
+      activeText: "text-orange-700",
+      hoverBg: "hover:bg-orange-50/50",
+      hoverText: "hover:text-orange-700",
+      iconActive: "text-orange-600",
+      indicator: "bg-orange-600",
+    },
+    items: [
+      {
+        id: "user",
+        title: "User",
+        icon: "User",
+        subMenus: [
+          {
+            name: "User",
+            href: "/dashboard/admin/user",
+          },
+          {
+            name: "User Profile",
+            href: "/dashboard/admin/userProfile",
+          },
+        ],
+      },
+    ],
+  },
+  {
     groupName: "OPERATIONS",
     accentDot: "bg-blue-600",
     themeClass: {
@@ -239,7 +268,7 @@ export const MENU_DATA: MenuGroup[] = [
         title: "ทรัพยากรบุคคล",
         icon: "Users",
         subMenus: [
-          { name: "Employee & Sub", href: "/" },
+          { name: "Employee & Sub", href: "/dashboard/hrm/employee" },
           { name: "Time Attendance", href: "/" },
           { name: "Payroll & Wages", href: "/" },
         ],

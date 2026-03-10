@@ -97,9 +97,9 @@ model User {
   username     String     @unique
   passwordHash String
   email        String?    @unique
-  status       UserStatus @default(ACTIVE)
-  roleId       String
+  status       UserStatus @default(PENDING)
 
+  roleId  String
   profile UserProfile?
   role    JobRole      @relation(fields: [roleId], references: [id])
 
@@ -110,9 +110,18 @@ model User {
   leaveRequests    LeaveRequest[]
   purchaseRequests PurchaseRequest[] @relation("PRRequester")
 
-  // 🌟 แก้ไข: จัดการ Relation ของ BOQ ให้ถูกต้อง (คนสร้าง กับ คนอนุมัติ)
   boqsCreated  BOQ[] @relation("BOQCreator")
   boqsApproved BOQ[] @relation("BOQApprover")
+
+  // 🌟 เพิ่มเติม: เก็บหลักฐานว่าใครสร้าง และใครอนุมัติ (Supervisor Override)
+  createdById  String?
+  approvedById String?
+
+  createdBy  User? @relation("UserCreator", fields: [createdById], references: [id])
+  approvedBy User? @relation("UserApprover", fields: [approvedById], references: [id])
+
+  usersCreated  User[] @relation("UserCreator")
+  usersApproved User[] @relation("UserApprover")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
