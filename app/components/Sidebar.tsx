@@ -61,7 +61,7 @@ export const MENU_DATA: MenuGroup[] = [
         title: "Alpha & Omega",
         icon: "LayoutDashboard",
         subMenus: [
-          { name: "Classification", href: "/dashboard/omega/Classification" },
+          { name: "Master Data", href: "/dashboard/omega/" },
           {
             name: "Department",
             href: "/dashboard/omega/Classification/Department",

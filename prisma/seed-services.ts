@@ -1,75 +1,76 @@
-import { PrismaClient } from '../app/generated/prisma';
+import * as dotenv from 'dotenv';
+dotenv.config({ path: '.env' });
 
-const prisma = new PrismaClient();
-
-const companyServices = [
+const mockServices = [
   {
     code: 'SRV-CON',
     name: 'รับเหมาก่อสร้าง (Construction)',
-    description: 'งานก่อสร้างอาคาร บ้านใหม่ คอนโด ตั้งแต่โครงสร้างจนจบงาน'
+    description: 'งานก่อสร้างอาคาร บ้านใหม่ คอนโด ตั้งแต่โครงสร้างจนจบงาน',
+    isActive: true,
   },
   {
     code: 'SRV-EXT',
     name: 'ต่อเติม (Extension)',
-    description: 'งานต่อเติมพื้นที่จากโครงสร้างเดิม เช่น ต่อเติมครัว โรงจอดรถ'
+    description: 'งานต่อเติมพื้นที่จากโครงสร้างเดิม เช่น ต่อเติมครัว โรงจอดรถ',
+    isActive: true,
   },
   {
     code: 'SRV-REN',
     name: 'รีโนเวท (Renovation)',
-    description: 'งานปรับปรุง ซ่อมแซม และตกแต่งใหม่บนโครงสร้างเดิม'
+    description: 'งานปรับปรุง ซ่อมแซม และตกแต่งใหม่บนโครงสร้างเดิม',
+    isActive: true,
   },
   {
     code: 'SRV-DES',
     name: 'ออกแบบ (Design)',
-    description: 'งานบริการออกแบบสถาปัตยกรรม ภายใน และเขียนแบบ'
+    description: 'งานบริการออกแบบสถาปัตยกรรม ภายใน และเขียนแบบ',
+    isActive: true,
   },
   {
     code: 'SRV-INS',
     name: 'ตรวจบ้าน (Home Inspection)',
-    description: 'งานบริการตรวจรับบ้าน คอนโด ก่อนโอน หรือตรวจรอยร้าว'
+    description: 'งานบริการตรวจรับบ้าน คอนโด ก่อนโอน หรือตรวจรอยร้าว',
+    isActive: true,
   },
   {
     code: 'SRV-OTH',
     name: 'อื่นๆ (Others)',
-    description: 'งานบริการพิเศษ งานจิปาถะ หรือโปรเจกต์ที่ยังไม่ระบุหมวดหมู่ชัดเจน'
+    description: 'งานบริการพิเศษ งานจิปาถะ หรือโปรเจกต์ที่ยังไม่ระบุหมวดหมู่ชัดเจน',
+    isActive: true,
   },
 ];
 
-async function seedServices() {
-  console.log('🌱 Seeding company services...');
-
-  try {
-    // Clear existing services
-    await prisma.serviceUs.deleteMany();
-    console.log('🗑️  Cleared existing services');
-
-    // Insert new services
-    for (const service of companyServices) {
+async function main() {
+  const { prisma } = await import('../app/lib/prisma') as any;
+  for (const { code, name, description, isActive } of mockServices) {
+    const existing = await prisma.serviceUs.findUnique({
+      where: { code }
+    });
+    if (!existing) {
       await prisma.serviceUs.create({
         data: {
-          ...service,
-          isActive: true,
-        },
+          code,
+          name,
+          description,
+          isActive
+        }
       });
-      console.log(`✅ Created service: ${service.code} - ${service.name}`);
+      console.log(`Created service ${code}`);
+    } else {
+      await prisma.serviceUs.update({
+        where: { code },
+        data: { name, description, isActive }
+      });
+      console.log(`Updated service ${code}`);
     }
-
-    console.log('🎉 Services seeding completed!');
-  } catch (error) {
-    console.error('❌ Error seeding services:', error);
-    throw error;
   }
 }
 
-async function main() {
-  await seedServices();
-}
-
 main()
-  .catch((e) => {
+  .catch(e => {
     console.error(e);
     process.exit(1);
   })
-  .finally(async () => {
-    await prisma.$disconnect();
+  .finally(() => {
+    console.log('Done');
   });

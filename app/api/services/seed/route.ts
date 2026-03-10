@@ -60,11 +60,40 @@ export async function POST(request: NextRequest) {
     ];
 
     console.log('🌱 Seeding services via API...');
-    
-    // For now, return the mock data as if it was seeded
-    // In production, this would actually seed the database
+
+    if (process.env.DATABASE_URL) {
+      const { PrismaClient } = await import("@/app/generated/prisma");
+      const prisma = new PrismaClient();
+
+      for (const service of companyServices) {
+        const { projects, createdAt, updatedAt, ...data } = service;
+        const exists = await prisma.serviceUs.findUnique({
+          where: { code: data.code }
+        });
+        
+        if (!exists) {
+          await prisma.serviceUs.create({ data });
+        } else {
+          await prisma.serviceUs.update({
+            where: { code: data.code },
+            data: {
+              name: data.name,
+              description: data.description,
+              isActive: data.isActive
+            }
+          });
+        }
+      }
+
+      return NextResponse.json({
+        message: "Services seeded successfully in database",
+        services: companyServices
+      });
+    }
+
+    // Fallback if no database
     return NextResponse.json({
-      message: "Services seeded successfully",
+      message: "Services seeded (mock only)",
       services: companyServices
     });
   } catch (error) {

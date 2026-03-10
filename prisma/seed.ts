@@ -89,6 +89,25 @@ async function main() {
       data: subdistricts
     });
 
+    // Insert ServiceUs
+    console.log('💾 Inserting services...');
+    const servicesData = [
+      { code: 'SRV-CON', name: 'รับเหมาก่อสร้าง (Construction)', description: 'งานก่อสร้างอาคาร บ้านใหม่ คอนโด ตั้งแต่โครงสร้างจนจบงาน', isActive: true },
+      { code: 'SRV-EXT', name: 'ต่อเติม (Extension)', description: 'งานต่อเติมพื้นที่จากโครงสร้างเดิม เช่น ต่อเติมครัว โรงจอดรถ', isActive: true },
+      { code: 'SRV-REN', name: 'รีโนเวท (Renovation)', description: 'งานปรับปรุง ซ่อมแซม และตกแต่งใหม่บนโครงสร้างเดิม', isActive: true },
+      { code: 'SRV-DES', name: 'ออกแบบ (Design)', description: 'งานบริการออกแบบสถาปัตยกรรม ภายใน และเขียนแบบ', isActive: true },
+      { code: 'SRV-INS', name: 'ตรวจบ้าน (Home Inspection)', description: 'งานบริการตรวจรับบ้าน คอนโด ก่อนโอน หรือตรวจรอยร้าว', isActive: true },
+      { code: 'SRV-OTH', name: 'อื่นๆ (Others)', description: 'งานบริการพิเศษ งานจิปาถะ หรือโปรเจกต์ที่ยังไม่ระบุหมวดหมู่ชัดเจน', isActive: true },
+    ];
+    for (const data of servicesData) {
+      const exists = await prisma.serviceUs.findUnique({ where: { code: data.code } });
+      if (!exists) {
+        await prisma.serviceUs.create({ data });
+      } else {
+        await prisma.serviceUs.update({ where: { code: data.code }, data });
+      }
+    }
+
     console.log('✅ Database seeded successfully!');
 
   } catch (error) {

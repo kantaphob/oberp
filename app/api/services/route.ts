@@ -112,30 +112,67 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if code already exists
-    const existingService = mockServices.find(s => s.code === code);
-    if (existingService) {
-      return NextResponse.json(
-        { error: "Service code already exists" },
-        { status: 409 }
-      );
+    // Try to use Prisma if DATABASE_URL is available
+    if (process.env.DATABASE_URL) {
+      const { PrismaClient } = await import("@/app/generated/prisma");
+      const prisma = new PrismaClient();
+
+      // Check if code already exists
+      const existingService = await prisma.serviceUs.findUnique({
+        where: { code }
+      });
+
+      if (existingService) {
+        return NextResponse.json(
+          { error: "Service code already exists" },
+          { status: 409 }
+        );
+      }
+
+      const newService = await prisma.serviceUs.create({
+        data: {
+          name,
+          code,
+          description,
+          isActive,
+        },
+        include: {
+          projects: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+      });
+
+      return NextResponse.json(newService, { status: 201 });
+    } else {
+      // Check if code already exists
+      const existingService = mockServices.find(s => s.code === code);
+      if (existingService) {
+        return NextResponse.json(
+          { error: "Service code already exists" },
+          { status: 409 }
+        );
+      }
+
+      // Create new service (mock implementation)
+      const newService = {
+        id: (mockServices.length + 1).toString(),
+        name,
+        code,
+        description,
+        isActive,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        projects: []
+      };
+
+      mockServices.push(newService);
+
+      return NextResponse.json(newService, { status: 201 });
     }
-
-    // Create new service (mock implementation)
-    const newService = {
-      id: (mockServices.length + 1).toString(),
-      name,
-      code,
-      description,
-      isActive,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      projects: []
-    };
-
-    mockServices.push(newService);
-
-    return NextResponse.json(newService, { status: 201 });
   } catch (error) {
     console.error("Error creating service:", error);
     return NextResponse.json(
