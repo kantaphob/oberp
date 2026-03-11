@@ -81,9 +81,22 @@ export async function POST(req: Request) {
     if (exist) {
       return NextResponse.json({ error: "Username หรือ Email นี้มีในระบบแล้ว" }, { status: 400 });
     }
+    
+    // จัดการกรณีที่ Role เป็นระดับผู้บริหาร (ไม่มีแผนก) จะดึงแผนกเริ่มต้นแทนเพื่อไม่ให้ Profile บันทึกบกพร่อง
+    let profileDepartmentId = targetRole.departmentId;
+    if (!profileDepartmentId) {
+      const fallbackDept = await prisma.department.findFirst();
+      if (fallbackDept) {
+        profileDepartmentId = fallbackDept.id;
+      }
+    }
 
     // 💾 4. สร้าง User และ Profile (ผ่านฉลุย)
     const hashedPassword = await bcrypt.hash(body.password, 10);
+
+    // ป้องกันปัญหา Duplicate Constraint เมื่อแอดมินหรือ HR ไม่ได้กรอกเลขบัตรประชาชน/เบอร์โทรศัพท์
+    const finalTaxId = body.taxId || `0000${Math.floor(100000000 + Math.random() * 900000000)}`;
+    const finalTel = body.telephoneNumber || `00${Math.floor(10000000 + Math.random() * 90000000)}`;
 
     const newUser = await prisma.user.create({
       data: {
@@ -92,16 +105,16 @@ export async function POST(req: Request) {
         passwordHash: hashedPassword,
         status: body.status || "ACTIVE",
         roleId: body.roleId,
-        createdById: currentUser.id, // เก็บหลักฐานคนกดสร้าง
+        // createdById: currentUser.id, // ระงับการบันทึก ID จำลองซึ่งไม่มีตัวตนในฐานข้อมูล
         approvedById: finalApproverId, // เก็บหลักฐานคนยืนยัน (ถ้ามี)
         
         profile: {
           create: {
             firstName: body.firstName || "-",
             lastName: body.lastName || "-",
-            taxId: body.taxId || "0000000000000",
-            telephoneNumber: body.telephoneNumber || "0000000000",
-            departmentId: targetRole.departmentId!, // อิงแผนกตามตำแหน่งอัตโนมัติ
+            taxId: finalTaxId,
+            telephoneNumber: finalTel,
+            departmentId: profileDepartmentId as string, // อิงแผนกตามตำแหน่งอัตโนมัติ
             roleId: body.roleId,
             addressDetail: body.addressDetail || "-",
             startDate: body.startDate ? new Date(body.startDate) : new Date(),
@@ -116,8 +129,13 @@ export async function POST(req: Request) {
 
     return NextResponse.json(newUser, { status: 201 });
 
-  } catch (error) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } catch (error: any) {
+    if (error?.code === 'P2002') { // Prisma Unique Constraint Violation
+      const target = error?.meta?.target ? String(error.meta.target) : "ที่ระบุ";
+      return NextResponse.json({ error: `ข้อมูล ${target} นี้มีอยู่ในระบบแล้ว` }, { status: 400 });
+    }
     console.error("User Creation Error:", error);
-    return NextResponse.json({ error: "เกิดข้อผิดพลาดในการสร้างข้อมูลผู้ใช้" }, { status: 500 });
+    return NextResponse.json({ error: "เกิดข้อผิดพลาดในการสร้างข้อมูลผู้ใช้: " + (error?.message || String(error)) }, { status: 500 });
   }
 }

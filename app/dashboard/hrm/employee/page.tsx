@@ -6,7 +6,15 @@ import {
   Users, Plus, Search, Edit2, Trash2, X, Shield, Mail, CheckCircle, AlertCircle, Building2, ChevronLeft, ChevronRight, Fingerprint, Eye, EyeOff, Wand2
 } from "lucide-react";
 
-type UserStatus = "ACTIVE" | "INACTIVE" | "SUSPENDED" | "PENDING";
+type UserStatus =
+  | "ACTIVE"
+  | "INACTIVE"
+  | "SUSPENDED"
+  | "ON_LEAVE"
+  | "RESIGNED"
+  | "TERMINATED"
+  | "LOCKED"
+  | "PENDING";
 
 type JobRole = {
   id: string;
@@ -108,7 +116,11 @@ export default function EmployeeManagementPage() {
   // Check supervisor approval require
   useEffect(() => {
     const selectedRole = roles.find(r => r.id === roleId);
-    if (selectedRole && selectedRole.level < 3 && modalMode === "ADD") {
+    // สมมติว่า HR ปัจจุบันมี level 3
+    const currentUserLevel = 10; 
+    
+    // หากสร้างตำแหน่งที่สูงกว่า (level น้อยกว่า) ตัวเอง ต้องขออนุมัติ
+    if (selectedRole && selectedRole.level < currentUserLevel && modalMode === "ADD") {
       setRequiresApproval(true);
     } else {
       setRequiresApproval(false);
@@ -192,8 +204,14 @@ export default function EmployeeManagementPage() {
       alert("Username is required");
       return;
     }
+    
+    if (telephoneNumber && telephoneNumber.length !== 10) {
+      alert("Phone number must be exactly 10 digits");
+      return;
+    }
 
     const payload: Record<string, string | boolean> = { 
+      username,
       email, 
       status, 
       roleId,
@@ -204,7 +222,6 @@ export default function EmployeeManagementPage() {
       addressDetail,
     };
     
-    if (modalMode === "EDIT") payload.username = username;
     if (password) payload.password = password;
     if (requiresApproval && modalMode === "ADD") {
       payload.approverUsername = approverUsername;
@@ -402,17 +419,28 @@ export default function EmployeeManagementPage() {
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex justify-center">
-                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide uppercase flex items-center gap-1 w-max
-                            ${user.status === "ACTIVE" ? "bg-emerald-100 text-emerald-700 border border-emerald-200" : 
-                              user.status === "PENDING" ? "bg-amber-100 text-amber-700 border border-amber-200" :
-                              user.status === "INACTIVE" ? "bg-slate-100 text-slate-600 border border-slate-200" : 
-                              "bg-red-100 text-red-600 border border-red-200"}`}
+                          <span
+                            className={`px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide uppercase flex items-center gap-1 w-max
+                            ${
+                              user.status === "ACTIVE"
+                                ? "bg-emerald-100 text-emerald-700 border border-emerald-200"
+                                : user.status === "PENDING"
+                                  ? "bg-amber-100 text-amber-700 border border-amber-200"
+                                  : user.status === "ON_LEAVE"
+                                    ? "bg-blue-100 text-blue-700 border border-blue-200"
+                                    : user.status === "INACTIVE"
+                                      ? "bg-slate-100 text-slate-600 border border-slate-200"
+                                      : user.status === "RESIGNED" || user.status === "TERMINATED"
+                                        ? "bg-slate-200 text-slate-700 border border-slate-300"
+                                        : "bg-red-100 text-red-600 border border-red-200"
+                            }`}
                           >
-                            {user.status === "ACTIVE" && <CheckCircle size={10} />}
-                            {user.status === "INACTIVE" && <AlertCircle size={10} />}
-                            {user.status === "PENDING" && <AlertCircle size={10} />}
-                            {user.status === "SUSPENDED" && <AlertCircle size={10} />}
-                            {user.status}
+                            {user.status === "ACTIVE" ? (
+                              <CheckCircle size={10} />
+                            ) : (
+                              <AlertCircle size={10} />
+                            )}
+                            {user.status.replace("_", " ")}
                           </span>
                         </div>
                       </td>
@@ -632,9 +660,14 @@ export default function EmployeeManagementPage() {
                       <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1.5">Phone Number</label>
                       <input 
                         type="tel" 
+                        maxLength={10}
+                        placeholder="08X-XXX-XXXX"
                         value={telephoneNumber}
-                        onChange={e => setTelephoneNumber(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-colors"
+                        onChange={e => {
+                          const val = e.target.value.replace(/\D/g, "");
+                          if (val.length <= 10) setTelephoneNumber(val);
+                        }}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-colors placeholder-slate-300"
                       />
                     </div>
                   </div>
@@ -651,10 +684,30 @@ export default function EmployeeManagementPage() {
                         onChange={e => setStatus(e.target.value as UserStatus)}
                         className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-colors bg-white font-medium"
                       >
-                        <option value="ACTIVE" className="text-emerald-600">Active</option>
-                        <option value="PENDING" className="text-amber-600">Pending</option>
-                        <option value="INACTIVE" className="text-slate-600">Inactive</option>
-                        <option value="SUSPENDED" className="text-red-600">Suspended</option>
+                        <option value="ACTIVE" className="text-emerald-600">
+                          Active
+                        </option>
+                        <option value="PENDING" className="text-amber-600">
+                          Pending
+                        </option>
+                        <option value="ON_LEAVE" className="text-blue-600">
+                          On Leave
+                        </option>
+                        <option value="INACTIVE" className="text-slate-600">
+                          Inactive
+                        </option>
+                        <option value="RESIGNED" className="text-slate-600">
+                          Resigned
+                        </option>
+                        <option value="TERMINATED" className="text-slate-600">
+                          Terminated
+                        </option>
+                        <option value="SUSPENDED" className="text-red-600">
+                          Suspended
+                        </option>
+                        <option value="LOCKED" className="text-red-600">
+                          Locked
+                        </option>
                       </select>
                     </div>
                   </div>
