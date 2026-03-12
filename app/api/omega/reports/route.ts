@@ -64,11 +64,15 @@ export async function POST(req: Request) {
         const { 
             password, username, email, status, roleId,
             firstName, lastName, taxId, telephoneNumber, addressDetail,
-            startDate
+            provinceId, districtId, subdistrictId, zipcode, lineId,
+            gender, nationality, birthDate, startDate
         } = payload;
 
         if (pending.action.startsWith("DELETE")) {
-            await prisma.user.delete({ where: { id: targetId! } });
+            await prisma.user.update({ 
+                where: { id: targetId! },
+                data: { status: "TERMINATED" }
+            });
         } else if (pending.action.startsWith("UPDATE") || pending.action.startsWith("EDIT")) {
             // Reconstruct nested update
             const dataToUpdate: any = { username, email, status, roleId };
@@ -82,19 +86,49 @@ export async function POST(req: Request) {
                     ...dataToUpdate,
                     profile: {
                         upsert: {
-                            create: { firstName, lastName, taxId, telephoneNumber, addressDetail, departmentId: "", roleId, startDate: startDate ? new Date(startDate) : new Date() },
-                            update: { firstName, lastName, taxId, telephoneNumber, addressDetail }
+                            create: { 
+                                firstName, lastName, taxId, telephoneNumber, addressDetail, 
+                                departmentId: payload.departmentId || "", 
+                                roleId: roleId || "", 
+                                provinceId: (provinceId && provinceId !== "") ? parseInt(provinceId, 10) : null,
+                                districtId: (districtId && districtId !== "") ? parseInt(districtId, 10) : null,
+                                subdistrictId: (subdistrictId && subdistrictId !== "") ? parseInt(subdistrictId, 10) : null,
+                                zipcode, lineId, gender, nationality,
+                                birthDate: birthDate ? new Date(birthDate) : null,
+                                startDate: startDate ? new Date(startDate) : new Date() 
+                            },
+                            update: { 
+                                firstName, lastName, taxId, telephoneNumber, addressDetail,
+                                departmentId: payload.departmentId || "", 
+                                roleId: roleId || "", 
+                                provinceId: (provinceId && provinceId !== "") ? parseInt(provinceId, 10) : null,
+                                districtId: (districtId && districtId !== "") ? parseInt(districtId, 10) : null,
+                                subdistrictId: (subdistrictId && subdistrictId !== "") ? parseInt(subdistrictId, 10) : null,
+                                zipcode, lineId, gender, nationality,
+                                birthDate: birthDate ? new Date(birthDate) : null,
+                                startDate: startDate ? new Date(startDate) : undefined,
+                            }
                         }
                     }
                 }
             });
         } else if (pending.action.startsWith("CREATE")) {
-             const hashedPassword = password ? await bcrypt.hash(password, 10) : await bcrypt.hash("123456", 10);
+             const hashedPassword = password && password !== "********" ? await bcrypt.hash(password, 10) : await bcrypt.hash("123456", 10);
              await prisma.user.create({
                  data: {
                      username, email, passwordHash: hashedPassword, status, roleId,
                      profile: {
-                         create: { firstName, lastName, taxId, telephoneNumber, addressDetail, departmentId: "", roleId, startDate: startDate ? new Date(startDate) : new Date() }
+                         create: { 
+                            firstName, lastName, taxId, telephoneNumber, addressDetail, 
+                            departmentId: payload.departmentId || "", 
+                            roleId: roleId || "", 
+                            provinceId: provinceId ? parseInt(provinceId, 10) : null,
+                            districtId: districtId ? parseInt(districtId, 10) : null,
+                            subdistrictId: subdistrictId ? parseInt(subdistrictId, 10) : null,
+                            zipcode, lineId, gender, nationality,
+                            birthDate: birthDate ? new Date(birthDate) : null,
+                            startDate: startDate ? new Date(startDate) : new Date() 
+                        }
                      }
                  }
              });

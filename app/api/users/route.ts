@@ -3,9 +3,13 @@ import bcrypt from "bcrypt";
 import { prisma } from "@/app/lib/prisma";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/lib/authOptions";
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    const { searchParams } = new URL(req.url);
+    const noProfile = searchParams.get('noProfile') === 'true';
+
     const users = await prisma.user.findMany({
+      where: noProfile ? { profile: null } : undefined,
       include: {
         role: {
           include: {
@@ -46,58 +50,101 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "ไม่สามารถสร้างบัญชีผู้ก่อตั้ง (Level 0) เพิ่มเติมได้ (ต้องใช้บัญชีระดับ God Mode ในการสร้างเท่านั้น)" }, { status: 403 });
     }
 
-    // 🛡️ SUPERVISOR OVERRIDE & STAGING LOGIC
-    let finalApproverId = null;
-    const { approverUsername, ...cleanPayload } = body;
+    // --- Prepare Basic Data (Fallback Department, IDs) ---
+    let profileDepartmentId = targetRole.departmentId;
+    if (!profileDepartmentId) {
+      const fallbackDept = await prisma.department.findFirst();
+      if (fallbackDept) profileDepartmentId = fallbackDept.id;
+    }
 
-    // ถ้าคนสร้างไม่ใช่ Level 0 จะต้องมีการขออนุมัติ (Stage to Report)
-    if (currentUser.level > 0) {
+    const finalTaxId = body.taxId || `0000${Math.floor(100000000 + Math.random() * 900000000)}`;
+    const finalTel = body.telephoneNumber || `00${Math.floor(10000000 + Math.random() * 90000000)}`;
+
+    // 🛡️ SUPERVISOR OVERRIDE & STAGING LOGIC
+    const { approverUsername, userId, ...cleanPayload } = body;
+
+    // 1. ถ้าคนสร้างไม่ใช่ Level 0 จะต้องมีการขออนุมัติ (Stage to Report)
+    if (session.user.level > 0) {
       if (!approverUsername) {
         return NextResponse.json({ 
           error: "สิทธิ์ไม่เพียงพอ: กรุณาระบุรหัสผู้ดูแล (Level 0) เพื่อส่งเรื่องขออนุมัติ", 
-          requireSupervisor: true 
+          code: "SUPERVISOR_REQUIRED" 
         }, { status: 403 });
       }
 
-      // ตรวจสอบผู้ยืนยัน (Case-insensitive & Trim)
-      const cleanUsername = approverUsername?.trim();
-      const approver = await prisma.user.findFirst({ 
-        where: { 
-          username: {
-            equals: cleanUsername,
-            mode: 'insensitive'
-          }
-        },
-        include: { role: true }
+      // ตรวจสอบ Supervisor
+      const supervisor = await prisma.user.findFirst({
+        where: {
+          username: { equals: approverUsername.trim(), mode: 'insensitive' },
+          role: { level: 0 }
+        }
       });
 
-      if (!approver || (approver.role?.level ?? 999) !== 0) {
-        return NextResponse.json({ error: `ไม่พบรหัสผู้ดูแล "${cleanUsername}" ที่มีระดับ Level 0 ในระบบ` }, { status: 403 });
+      if (!supervisor) {
+        return NextResponse.json({ error: "ไม่พบรหัสผู้ดูแลนี้ หรือผู้ดูแลไม่มีสิทธิ์ระดับ 0" }, { status: 403 });
       }
 
-      // บันทึกลงระบบ Staging (PendingAction)
-      // เคลียร์ฟิลด์ที่ไม่เกี่ยวข้องออกก่อนลง DB ( isAdmin, approverUsername ถูกดึงออกไปแล้ว)
-      console.log("DEBUG POST: Prisma Keys available:", Object.keys(prisma).filter(k => !k.startsWith("_")));
-      const payloadToSave: any = { ...cleanPayload };
+      // บันทึกรายการรออนุมัติ
+      const payloadToSave = JSON.parse(JSON.stringify(cleanPayload));
       if (payloadToSave.password) payloadToSave.password = "********";
+      if (userId) payloadToSave.userId = userId;
 
       await prisma.pendingAction.create({
         data: {
-          action: "CREATE_USER",
-          description: `ขอสั่งสร้างพนักงานใหม่ @${body.username || "unknown"} (${targetRole.name}) โดย ${currentUser.username}`,
-          payload: JSON.parse(JSON.stringify(payloadToSave)), // ล้างค่า undefined เพื่อป้องกัน Error 500
+          action: userId ? "UPDATE_USER" : "CREATE_USER",
+          description: userId 
+            ? `ขอเพิ่มข้อมูลประวัติพนักงาน (UserId: ${userId}) โดย ${session.user.username}`
+            : `ขอสร้างพนักงานใหม่ @${body.username} โดย ${session.user.username}`,
+          payload: payloadToSave,
           targetModel: "User",
-          requesterId: currentUser.id,
-          approverId: approver.id,
-          status: "PENDING"
+          targetId: userId || null,
+          requesterId: session.user.id,
+          approverId: supervisor.id,
+          status: "PENDING",
         }
       });
 
       return NextResponse.json({ 
-        message: "สั่งสร้างข้อมูลสำเร็จ (รายการถูกส่งไปที่ Report เพื่อรอการยืนยันขั้นตอนสุดท้าย)" 
-      }, { status: 202 });
+        message: "ส่งคำขออนุมัติเรียบร้อยแล้ว กรุณารอผู้ดูแลตรวจสอบ",
+        pending: true 
+      });
     }
 
+    // --- Direct Logic for Level 0 ---
+
+    if (userId) {
+      // โหมดเพิ่มข้อมูล Profile ให้ User เดิม
+      const updatedUser = await prisma.user.update({
+        where: { id: userId },
+        data: {
+          roleId: body.roleId,
+          status: body.status || "ACTIVE",
+          profile: {
+            create: {
+              firstName: body.firstName || "-",
+              lastName: body.lastName || "-",
+              taxId: finalTaxId,
+              telephoneNumber: finalTel,
+              departmentId: profileDepartmentId as string,
+              roleId: body.roleId,
+              addressDetail: body.addressDetail || "-",
+              provinceId: (body.provinceId && body.provinceId !== "") ? parseInt(body.provinceId, 10) : null,
+              districtId: (body.districtId && body.districtId !== "") ? parseInt(body.districtId, 10) : null,
+              subdistrictId: (body.subdistrictId && body.subdistrictId !== "") ? parseInt(body.subdistrictId, 10) : null,
+              zipcode: body.zipcode || null,
+              lineId: body.lineId || null,
+              gender: body.gender || null,
+              nationality: body.nationality || null,
+              birthDate: body.birthDate ? new Date(body.birthDate) : null,
+              startDate: body.startDate ? new Date(body.startDate) : new Date(),
+            }
+          }
+        }
+      });
+      return NextResponse.json({ message: "เพิ่มข้อมูลพนักงานสำเร็จ", user: updatedUser }, { status: 201 });
+    }
+
+    // โหมดสร้าง User ใหม่พร้อม Profile
     const exist = await prisma.user.findFirst({
       where: {
         OR: [
@@ -111,21 +158,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Username หรือ Email นี้มีในระบบแล้ว" }, { status: 400 });
     }
     
-    // จัดการกรณีที่ Role เป็นระดับผู้บริหาร (ไม่มีแผนก) จะดึงแผนกเริ่มต้นแทนเพื่อไม่ให้ Profile บันทึกบกพร่อง
-    let profileDepartmentId = targetRole.departmentId;
-    if (!profileDepartmentId) {
-      const fallbackDept = await prisma.department.findFirst();
-      if (fallbackDept) {
-        profileDepartmentId = fallbackDept.id;
-      }
-    }
-
-    // 💾 4. สร้าง User และ Profile (ผ่านฉลุย)
     const hashedPassword = await bcrypt.hash(body.password, 10);
-
-    // ป้องกันปัญหา Duplicate Constraint เมื่อแอดมินหรือ HR ไม่ได้กรอกเลขบัตรประชาชน/เบอร์โทรศัพท์
-    const finalTaxId = body.taxId || `0000${Math.floor(100000000 + Math.random() * 900000000)}`;
-    const finalTel = body.telephoneNumber || `00${Math.floor(10000000 + Math.random() * 90000000)}`;
 
     const newUser = await prisma.user.create({
       data: {
@@ -134,8 +167,7 @@ export async function POST(req: Request) {
         passwordHash: hashedPassword,
         status: body.status || "ACTIVE",
         roleId: body.roleId,
-        createdById: currentUser.id, // บันทึก ID ผู้สร้างที่แท้จริง
-        approvedById: finalApproverId, // เก็บหลักฐานคนยืนยัน (ถ้ามี)
+        createdById: currentUser.id,
         
         profile: {
           create: {
@@ -143,9 +175,17 @@ export async function POST(req: Request) {
             lastName: body.lastName || "-",
             taxId: finalTaxId,
             telephoneNumber: finalTel,
-            departmentId: profileDepartmentId as string, // อิงแผนกตามตำแหน่งอัตโนมัติ
+            departmentId: profileDepartmentId as string,
             roleId: body.roleId,
             addressDetail: body.addressDetail || "-",
+            provinceId: (body.provinceId && body.provinceId !== "") ? parseInt(body.provinceId, 10) : null,
+            districtId: (body.districtId && body.districtId !== "") ? parseInt(body.districtId, 10) : null,
+            subdistrictId: (body.subdistrictId && body.subdistrictId !== "") ? parseInt(body.subdistrictId, 10) : null,
+            zipcode: body.zipcode || null,
+            lineId: body.lineId || null,
+            gender: body.gender || null,
+            nationality: body.nationality || null,
+            birthDate: body.birthDate ? new Date(body.birthDate) : null,
             startDate: body.startDate ? new Date(body.startDate) : new Date(),
           }
         }

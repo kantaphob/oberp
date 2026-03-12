@@ -4,6 +4,38 @@ import { prisma } from "@/app/lib/prisma";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/lib/authOptions";
 
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await params;
+    const user = await prisma.user.findUnique({
+      where: { id },
+      include: {
+        role: {
+          include: {
+            department: true,
+          }
+        },
+        profile: {
+          include: {
+            district: true,
+            subdistrict: true,
+            province: true,
+          }
+        },
+      },
+    });
+
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    return NextResponse.json(user);
+  } catch (error) {
+    console.error("Failed to fetch user", error);
+    return NextResponse.json({ error: "Failed to fetch user" }, { status: 500 });
+  }
+}
+
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
@@ -94,22 +126,18 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
     // --- ถ้าเป็น Level 0 จะข้ามมาที่นี่และ Commit ทันที ---
     
-    const dataToUpdate: Record<string, string | null> = {
-      username,
-      status,
-      roleId,
-    };
-
+    // --- Level 0 Commit Logic ---
+    const dataToUpdate: any = { username, status, roleId };
     if (email) dataToUpdate.email = email;
-    if (password) {
+    if (password && password !== "********") {
       dataToUpdate.passwordHash = await bcrypt.hash(password, 10);
     }
 
-    // Try finding the new role to update department implicitly
-    let departmentId = targetUser.profile?.departmentId;
+    // Prioritize body.departmentId, then fallback to current or role-based
+    let finalDeptId = body.departmentId || targetUser.profile?.departmentId;
     if (roleId && roleId !== targetUser.roleId) {
       const newRole = await prisma.jobRole.findUnique({ where: { id: roleId } });
-      if (newRole && newRole.departmentId) departmentId = newRole.departmentId;
+      if (newRole && newRole.departmentId && !body.departmentId) finalDeptId = newRole.departmentId;
     }
 
     const updatedUser = await prisma.user.update({
@@ -124,8 +152,17 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
               taxId: taxId || `0000${Math.floor(100000000 + Math.random() * 900000000)}`,
               telephoneNumber: telephoneNumber || `00${Math.floor(10000000 + Math.random() * 90000000)}`,
               addressDetail: addressDetail || "-",
-              departmentId: departmentId || "",
+              departmentId: (finalDeptId as string) || "",
               roleId: roleId || targetUser.roleId,
+              provinceId: (body.provinceId && body.provinceId !== "") ? parseInt(body.provinceId, 10) : null,
+              districtId: (body.districtId && body.districtId !== "") ? parseInt(body.districtId, 10) : null,
+              subdistrictId: (body.subdistrictId && body.subdistrictId !== "") ? parseInt(body.subdistrictId, 10) : null,
+              zipcode: body.zipcode || null,
+              lineId: body.lineId || null,
+              gender: body.gender || null,
+              nationality: body.nationality || null,
+              birthDate: body.birthDate ? new Date(body.birthDate) : null,
+              startDate: body.startDate ? new Date(body.startDate) : new Date(),
             },
             update: {
               firstName,
@@ -133,11 +170,20 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
               taxId,
               telephoneNumber,
               addressDetail,
-              departmentId,
-              roleId,
+              departmentId: (finalDeptId as string),
+              roleId: roleId,
+              provinceId: (body.provinceId && body.provinceId !== "") ? parseInt(body.provinceId, 10) : null,
+              districtId: (body.districtId && body.districtId !== "") ? parseInt(body.districtId, 10) : null,
+              subdistrictId: (body.subdistrictId && body.subdistrictId !== "") ? parseInt(body.subdistrictId, 10) : null,
+              zipcode: body.zipcode || null,
+              lineId: body.lineId || null,
+              gender: body.gender || null,
+              nationality: body.nationality || null,
+              birthDate: body.birthDate ? new Date(body.birthDate) : null,
+              startDate: body.startDate ? new Date(body.startDate) : undefined,
             }
           }
-        }
+        },
       },
       include: {
         role: {
@@ -210,12 +256,12 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
         return NextResponse.json({ error: `ไม่พบรหัสผู้ดูแล "${cleanUsername}" ที่มีระดับ Level 0 ในระบบ` }, { status: 403 });
       }
 
-      // Stage for final approval
+      // Stage for final approval (Soft Delete)
       await prisma.pendingAction.create({
         data: {
           action: "DELETE_USER",
-          description: `ขอสั่งลบพนักงาน @${targetUser.username} โดย ${session.user.username}`,
-          payload: {}, // No payload needed for delete, just targetId
+          description: `ขอระงับการใช้งานและเปลี่ยนสถานะเป็น TERMINATED สำหรับพนักงาน @${targetUser.username} โดย ${session.user.username}`,
+          payload: { status: "TERMINATED" }, 
           targetModel: "User",
           targetId: id,
           requesterId: session.user.id,
@@ -225,16 +271,20 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
       });
 
       return NextResponse.json({ 
-        message: "สั่งลบข้อมูลสำเร็จ (รายการถูกส่งไปที่ Report เพื่อรอการยืนยันขั้นตอนสุดท้าย)" 
+        message: "สั่งระงับการใช้งานสำเร็จ (รายการถูกส่งไปที่ Report เพื่อรอการยืนยันขั้นตอนสุดท้าย)" 
       }, { status: 202 });
     }
 
-    // --- Level 0 can delete directly ---
-    await prisma.user.delete({
+    // --- Level 0 can soft-delete directly ---
+    const softDeletedUser = await prisma.user.update({
       where: { id },
+      data: { status: "TERMINATED" }
     });
 
-    return new NextResponse(null, { status: 204 });
+    return NextResponse.json({ 
+      message: "ระงับการใช้งานและเปลี่ยนสถานะเป็น TERMINATED เรียบร้อยแล้ว",
+      user: softDeletedUser
+    });
   } catch (error) {
     console.error("Failed to delete user", error);
     return NextResponse.json({ error: "เกิดข้อผิดพลาดในการลบข้อมูล" }, { status: 500 });

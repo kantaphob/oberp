@@ -106,62 +106,77 @@ model User {
   tasks            Task[]            @relation("TaskAssignee")
   purchaseRequests PurchaseRequest[] @relation("PRRequester")
   activityLogs     ActivityLog[]
-  
-  requestedActions PendingAction[]   @relation("Requester")
-  approvedActions  PendingAction[]   @relation("Approver")
+
+  requestedActions PendingAction[] @relation("Requester")
+  approvedActions  PendingAction[] @relation("Approver")
 
   @@map("core_users")
 }
 
-model PendingAction {
-  id             String   @id @default(uuid())
-  action         String   // e.g., "DELETE_USER", "UPDATE_USER", "DELETE_ROLE"
-  description    String
-  payload        Json     // Data to apply
-  targetModel    String   // e.g., "User", "JobRole"
-  targetId       String?
-  requesterId    String
-  approverId     String?  // The supervisor who authorized the staging
-  status         String   @default("PENDING") // PENDING, APPROVED, REJECTED
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  requester      User     @relation("Requester", fields: [requesterId], references: [id])
-  approver       User?    @relation("Approver", fields: [approverId], references: [id])
-
-  @@map("sys_pending_actions")
-}
-
 model UserProfile {
-  id              String       @id @default(uuid())
-  userId          String       @unique
-  taxId           String       @unique @db.VarChar(13)
+  id              String  @id @default(uuid())
+  userId          String  @unique
+  user            User    @relation(fields: [userId], references: [id], onDelete: Restrict)
+  taxId           String  @unique @db.VarChar(13)
   firstName       String
   lastName        String
-  telephoneNumber String       @unique @db.VarChar(10)
+  telephoneNumber String  @unique @db.VarChar(10)
   lineId          String?
-  addressDetail   String
-  subdistrictId   Int?
-  districtId      Int?
-  provinceId      Int?
-  zipcode         String?      @db.VarChar(5)
-  departmentId    String
-  roleId          String
-  image           String?
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
-  birthDate       DateTime?
   gender          String?
   nationality     String?
-  startDate       DateTime     @default(now())
-  department      Department   @relation(fields: [departmentId], references: [id])
-  district        District?    @relation(fields: [districtId], references: [id])
-  province        Province?    @relation(fields: [provinceId], references: [id])
-  role            JobRole      @relation(fields: [roleId], references: [id])
-  subdistrict     Subdistrict? @relation(fields: [subdistrictId], references: [id])
-  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  addressDetail String
+  subdistrictId Int?
+  subdistrict   Subdistrict? @relation(fields: [subdistrictId], references: [id])
+  districtId    Int?
+  district      District?    @relation(fields: [districtId], references: [id])
+  departmentId  String
+  department    Department   @relation(fields: [departmentId], references: [id])
+  provinceId    Int?
+  province      Province?    @relation(fields: [provinceId], references: [id])
+  zipcode       String?      @db.VarChar(5)
+
+  roleId String
+  role   JobRole @relation(fields: [roleId], references: [id])
+
+  image String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  birthDate DateTime?
+
+  startDate DateTime           @default(now())
+  file      userProfilesFile[]
 
   @@map("core_user_profiles")
+}
+
+model userProfilesFile {
+  id            String      @id @default(uuid())
+  userProfileId String
+  file          String
+  documentType  String // เช่น "ID_CARD", "RESUME", "BOOK_BANK"
+  fileName      String? // ชื่อไฟล์ต้นฉบับ เช่น "บัตรปชช_สมชาย.pdf"
+  userProfile   UserProfile @relation(fields: [userProfileId], references: [id])
+}
+
+model PendingAction {
+  id          String   @id @default(uuid())
+  action      String // e.g., "DELETE_USER", "UPDATE_USER", "DELETE_ROLE"
+  description String
+  payload     Json // Data to apply
+  targetModel String // e.g., "User", "JobRole"
+  targetId    String?
+  requesterId String
+  approverId  String? // The supervisor who authorized the staging
+  status      String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  requester User  @relation("Requester", fields: [requesterId], references: [id])
+  approver  User? @relation("Approver", fields: [approverId], references: [id])
+
+  @@map("sys_pending_actions")
 }
 
 model Province {
