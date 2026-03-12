@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTableControls } from "@/app/hooks/useTableControls";
+import { TableControls } from "@/app/components/Dashboard/TableControls";
 
 type Province = {
   id: number;
@@ -154,6 +156,11 @@ export default function Postcode() {
     }
   }, [zipcode, isSearchingZip]);
 
+  const { paged, tableProps } = useTableControls(tableData, {
+    defaultPerPage: 10,
+    searchKeys: ["nameTh", "nameEn"],
+  });
+
   // Handle Zipcode input
   const handleZipcodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value.replace(/[^0-9]/g, "").substring(0, 5);
@@ -256,9 +263,12 @@ export default function Postcode() {
       </div>
 
       {/* ตารางแสดงผล */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="p-4 border-b border-gray-100 bg-gray-50">
-          <h2 className="text-lg font-semibold text-gray-800">📋 ตารางผลลัพธ์ ({tableData.length} รายการ)</h2>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
+        <div className="p-4 border-b border-gray-100 bg-gray-50 flex flex-col sm:flex-row justify-between items-center gap-4">
+          <h2 className="text-lg font-semibold text-gray-800">📋 ตารางผลลัพธ์</h2>
+          <div className="w-full sm:w-auto">
+            <TableControls table={tableProps} entityLabel="รายการ" searchPlaceholder="ค้นหาในตาราง..." />
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left text-gray-600">
@@ -271,8 +281,8 @@ export default function Postcode() {
               </tr>
             </thead>
             <tbody>
-              {tableData.length > 0 ? (
-                tableData.map((item) => (
+              {paged.length > 0 ? (
+                paged.map((item) => (
                   <tr key={item.id} className="bg-white border-b hover:bg-blue-50 transition-colors">
                     <td className="px-6 py-4 font-semibold text-blue-600">
                       {item.zipcode || '-'}
@@ -296,6 +306,9 @@ export default function Postcode() {
               )}
             </tbody>
           </table>
+        </div>
+        <div className="p-4 border-t border-gray-100 bg-gray-50/50">
+          <TableControls table={tableProps} entityLabel="รายการ" searchPlaceholder="" />
         </div>
       </div>
     </div>

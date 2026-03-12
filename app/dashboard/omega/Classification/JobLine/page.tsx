@@ -1,8 +1,10 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Plus, Edit, ShieldAlert, Search, RefreshCw, AlertCircle } from "lucide-react";
+import { Plus, Edit, ShieldAlert, RefreshCw, AlertCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useTableControls } from "@/app/hooks/useTableControls";
+import { TableControls } from "@/app/components/Dashboard/TableControls";
 
 type JobLine = {
   id: string;
@@ -14,7 +16,6 @@ type JobLine = {
 export default function JobLinePage() {
   const [jobLines, setJobLines] = useState<JobLine[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -99,11 +100,12 @@ export default function JobLinePage() {
     }
   };
 
-  const filteredData = jobLines.filter(
-    (jl) =>
-      jl.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      jl.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const { paged, tableProps } = useTableControls(jobLines, {
+    filterFn: (jl, term) => [
+      jl.code, jl.name, jl.description ?? ""
+    ].some(v => v.toLowerCase().includes(term)),
+    defaultPerPage: 10,
+  });
 
   return (
     <div className="flex flex-col h-full space-y-6">
@@ -126,20 +128,13 @@ export default function JobLinePage() {
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col flex-1">
-        <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row gap-4 justify-between bg-slate-50/50">
-          <div className="relative max-w-md w-full">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-            <input
-              type="text"
-              placeholder="ค้นหาจากรหัส หรือชื่อสายงาน..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-            />
+        <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row gap-4 justify-between items-center">
+          <div className="flex-1 w-full">
+            <TableControls table={tableProps} entityLabel="สายงาน" searchPlaceholder="ค้นหาจากรหัส หรือชื่อสายงาน..." />
           </div>
           <button
             onClick={fetchJobLines}
-            className="flex items-center justify-center gap-2 px-3 py-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors text-sm font-medium"
+            className="flex items-center justify-center gap-2 px-3 py-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors text-sm font-medium shrink-0 border border-slate-200 bg-white"
           >
             <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
             <span>รีเฟรช</span>
@@ -172,16 +167,14 @@ export default function JobLinePage() {
                     <p>กำลังโหลดข้อมูลสายงาน...</p>
                   </td>
                 </tr>
-              ) : filteredData.length === 0 ? (
+              ) : paged.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="py-12 text-center text-slate-500">
-                    <ShieldAlert className="w-12 h-12 mx-auto text-slate-200 mb-3" />
-                    <p className="text-lg font-medium text-slate-600">ไม่พบข้อมูลสายงาน</p>
-                    <p className="text-sm">ลองค้นหาด้วยคำอื่น หรือเพิ่มสายงานใหม่</p>
+                  <td colSpan={4} className="py-12 text-center text-slate-500 text-sm font-medium">
+                    ไม่พบข้อมูลสายงานที่ค้นหา
                   </td>
                 </tr>
               ) : (
-                filteredData.map((jl) => (
+                paged.map((jl) => (
                   <tr key={jl.id} className="hover:bg-slate-50/80 transition-colors group">
                     <td className="py-4 px-6 text-sm font-bold text-slate-700 align-top">
                       <span className="bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-md border border-indigo-100">
@@ -217,6 +210,9 @@ export default function JobLinePage() {
               )}
             </tbody>
           </table>
+        </div>
+        <div className="p-4 border-t border-slate-100 bg-slate-50/40">
+          <TableControls table={tableProps} entityLabel="สายงาน" searchPlaceholder="" />
         </div>
       </div>
 

@@ -1,8 +1,10 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Plus, Edit, Trash2, Search, Check, X, Box } from "lucide-react";
+import { Plus, Edit, Trash2, Check, X, Box } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useTableControls } from "@/app/hooks/useTableControls";
+import { TableControls } from "@/app/components/Dashboard/TableControls";
 
 type MaterialCategory = {
   id: string;
@@ -34,7 +36,6 @@ export default function MaterialCatalogPage() {
   const [categories, setCategories] = useState<MaterialCategory[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState({
@@ -184,13 +185,13 @@ export default function MaterialCatalogPage() {
     }
   };
 
-  const filteredData = catalogs.filter(
-    (c) =>
-      c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (c.brand && c.brand.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (c.category && c.category.name.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  const { paged, tableProps } = useTableControls(catalogs, {
+    filterFn: (c, term) => [
+      c.code, c.name, c.brand ?? "", c.category?.name ?? "",
+      c.costType
+    ].some(v => v.toLowerCase().includes(term)),
+    defaultPerPage: 10,
+  });
 
   return (
     <div className="flex flex-col h-full bg-slate-50 p-4 md:p-8 space-y-6 min-h-screen">
@@ -221,23 +222,9 @@ export default function MaterialCatalogPage() {
 
       {/* Main Content */}
       <div className="bg-white rounded-3xl shadow-sm border border-slate-100 flex-1 overflow-hidden flex flex-col">
-        {/* Search Bar */}
-        <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50/50">
-          <div className="relative w-full max-w-md">
-            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-              <Search className="text-slate-400 w-5 h-5" />
-            </div>
-            <input
-              type="text"
-              placeholder="ค้นหารหัส, ชื่อวัสดุ, แบรนด์ หรือหมวดหมู่..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-11 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all font-medium placeholder-slate-400"
-            />
-          </div>
-          <div className="text-sm font-medium text-slate-500 bg-white px-4 py-2 rounded-xl border border-slate-200">
-            ทั้งหมด {filteredData.length} รายการ
-          </div>
+        {/* Search & Pagination Controls */}
+        <div className="p-4 border-b border-slate-100 bg-slate-50/50">
+          <TableControls table={tableProps} entityLabel="รายการ" searchPlaceholder="ค้นหารหัส, ชื่อวัสดุ, แบรนด์ หรือหมวดหมู่..." />
         </div>
 
         {/* Table */}
@@ -275,14 +262,14 @@ export default function MaterialCatalogPage() {
                     </div>
                   </td>
                 </tr>
-              ) : filteredData.length === 0 ? (
+              ) : paged.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-slate-400">
-                    ไม่มีข้อมูลรายการวัสดุ
+                  <td colSpan={6} className="py-12 text-center text-slate-400 text-sm font-medium">
+                    ไม่มีข้อมูลรายการวัสดุที่ค้นหา
                   </td>
                 </tr>
               ) : (
-                filteredData.map((catalog) => (
+                paged.map((catalog) => (
                   <tr
                     key={catalog.id}
                     className="hover:bg-slate-50/80 transition-colors group"
@@ -373,6 +360,11 @@ export default function MaterialCatalogPage() {
               )}
             </tbody>
           </table>
+        </div>
+        
+        {/* Pagination Footer */}
+        <div className="p-4 border-t border-slate-100 bg-slate-50/40">
+          <TableControls table={tableProps} entityLabel="รายการ" searchPlaceholder="" />
         </div>
       </div>
 

@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import * as Icons from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { getRolePalette } from "@/app/lib/ui-configs";
 
 type ThemeClass = {
   activeBg: string;
@@ -307,12 +308,19 @@ export default function Sidebar() {
 
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [openCategories, setOpenCategories] = useState<string[]>([]);
-  const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    return localStorage.getItem("sidebar-collapsed") === "true";
-  });
+  const [isCollapsed, setIsCollapsed] = useState(false); // เริ่มต้นเป็น false เสมอเพื่อให้ตรงกับ Server
+  const [mounted, setMounted] = useState(false);
 
   const menus = MENU_DATA;
+
+  // อ่านค่าจาก localStorage หลังจาก Mount แล้วเท่านั้น (Client-side)
+  useEffect(() => {
+    setMounted(true);
+    const stored = localStorage.getItem("sidebar-collapsed");
+    if (stored === "true") {
+      setIsCollapsed(true);
+    }
+  }, []);
 
   useEffect(() => {
     if (openCategories.length === 0 && menus.length > 0) {
@@ -346,63 +354,7 @@ export default function Sidebar() {
         : [...prev, categoryId],
     );
   };
-  // ── Role color (deterministic hash → same palette as JobRole levels) ──
-  const ROLE_PALETTES = [
-    {
-      bg: "rgba(254,226,226,0.9)",
-      border: "rgba(252,165,165,0.5)",
-      text: "#b91c1c",
-      glow: "rgba(239,68,68,0.25)",
-    }, // rose
-    {
-      bg: "rgba(255,237,213,0.9)",
-      border: "rgba(253,186,116,0.5)",
-      text: "#c2410c",
-      glow: "rgba(249,115,22,0.25)",
-    }, // orange
-    {
-      bg: "rgba(254,249,195,0.9)",
-      border: "rgba(253,224,71,0.5)",
-      text: "#a16207",
-      glow: "rgba(234,179,8,0.25)",
-    }, // yellow
-    {
-      bg: "rgba(220,252,231,0.9)",
-      border: "rgba(134,239,172,0.5)",
-      text: "#15803d",
-      glow: "rgba(34,197,94,0.25)",
-    }, // green
-    {
-      bg: "rgba(204,251,241,0.9)",
-      border: "rgba(94,234,212,0.5)",
-      text: "#0f766e",
-      glow: "rgba(20,184,166,0.25)",
-    }, // teal
-    {
-      bg: "rgba(219,234,254,0.9)",
-      border: "rgba(147,197,253,0.5)",
-      text: "#1d4ed8",
-      glow: "rgba(59,130,246,0.25)",
-    }, // blue
-    {
-      bg: "rgba(237,233,254,0.9)",
-      border: "rgba(196,181,253,0.5)",
-      text: "#6d28d9",
-      glow: "rgba(139,92,246,0.25)",
-    }, // violet
-    {
-      bg: "rgba(252,231,243,0.9)",
-      border: "rgba(249,168,212,0.5)",
-      text: "#be185d",
-      glow: "rgba(236,72,153,0.25)",
-    }, // pink
-  ];
 
-  const getRolePalette = (name: string) => {
-    if (!name) return ROLE_PALETTES[5]; // default blue
-    const hash = [...name].reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
-    return ROLE_PALETTES[hash % ROLE_PALETTES.length];
-  };
   return (
     <>
       <button
@@ -593,60 +545,6 @@ export default function Sidebar() {
 
         {/* User Profile Section */}
         <div className="p-3 border-t border-white/60">
-          <style>{`
-    .liquid-glass-card {
-      background: linear-gradient(135deg,rgba(255,255,255,0.72) 0%,rgba(255,255,255,0.48) 40%,rgba(240,245,255,0.52) 100%);
-      backdrop-filter: blur(20px) saturate(1.8) brightness(1.05);
-      -webkit-backdrop-filter: blur(20px) saturate(1.8) brightness(1.05);
-      border: 1px solid rgba(255,255,255,0.85);
-      box-shadow: 0 2px 24px rgba(148,163,220,0.18), 0 1px 0px rgba(255,255,255,0.9) inset;
-    }
-    .liquid-glass-card::before {
-      content:''; position:absolute; inset:0; border-radius:inherit;
-      background: linear-gradient(160deg, rgba(255,255,255,0.55) 0%, transparent 45%);
-      pointer-events:none;
-    }
-    .liquid-avatar {
-      background: linear-gradient(135deg, #60a5fa 0%, #818cf8 100%);
-      box-shadow: 0 4px 16px rgba(99,130,255,0.35), 0 1px 0 rgba(255,255,255,0.6) inset;
-    }
-    .liquid-logout {
-      background: linear-gradient(135deg,rgba(255,241,242,0.85) 0%,rgba(254,226,226,0.75) 100%);
-      border: 1px solid rgba(252,165,165,0.45);
-      backdrop-filter: blur(8px);
-      box-shadow: 0 1px 0 rgba(255,255,255,0.8) inset, 0 2px 8px rgba(239,68,68,0.08);
-      transition: all 0.2s ease;
-    }
-    .liquid-logout:hover {
-      background: linear-gradient(135deg,rgba(255,228,230,0.95) 0%,rgba(254,202,202,0.88) 100%);
-      box-shadow: 0 1px 0 rgba(255,255,255,0.9) inset, 0 4px 16px rgba(239,68,68,0.15);
-      transform: translateY(-1px);
-    }
-    .liquid-divider {
-      height:1px;
-      background: linear-gradient(90deg, transparent, rgba(148,163,220,0.3) 30%, rgba(148,163,220,0.3) 70%, transparent);
-    }
-    .liquid-row { display:flex; align-items:flex-start; gap:6px; min-width:0; }
-    .liquid-label {
-      font-size:9px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase;
-      color:rgba(148,163,184,0.9); white-space:nowrap; line-height:1.6; padding-top:1px;
-      min-width:46px;
-    }
-    .liquid-value {
-      font-size:11px; font-weight:600; color:#334155;
-      overflow:hidden; text-overflow:ellipsis; white-space:nowrap; line-height:1.6;
-    }
-    .online-dot {
-      background: radial-gradient(circle at 35% 35%, #6ee7b7, #10b981);
-      box-shadow: 0 0 0 2px rgba(255,255,255,0.9), 0 0 6px rgba(16,185,129,0.5);
-    }
-    .liquid-glass-collapsed {
-      background: linear-gradient(135deg, rgba(255,255,255,0.7), rgba(240,245,255,0.6));
-      backdrop-filter: blur(16px) saturate(1.6);
-      border: 1px solid rgba(255,255,255,0.8);
-      box-shadow: 0 2px 16px rgba(148,163,220,0.15), 0 1px 0 rgba(255,255,255,0.9) inset;
-    }
-  `}</style>
 
           {!isCollapsed ? (
             (() => {

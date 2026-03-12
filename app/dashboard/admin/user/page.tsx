@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useTableControls } from "@/app/hooks/useTableControls";
+import { TableControls } from "@/app/components/Dashboard/TableControls";
 import {
   Users,
   Plus,
-  Search,
   Edit2,
   Trash2,
   X,
@@ -17,8 +18,6 @@ import {
   EyeOff,
   Eye,
   Building2,
-  ChevronLeft,
-  ChevronRight,
   Fingerprint,
   Wand2,
   RefreshCw,
@@ -75,13 +74,8 @@ export default function UserManagementPage() {
   const [roles, setRoles] = useState<JobRole[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [searchTerm, setSearchTerm] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"ADD" | "EDIT">("ADD");
-
-  // Pagination State
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 8;
 
   // Form State
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -346,27 +340,15 @@ export default function UserManagementPage() {
     }
   };
 
-  const filteredUsers = useMemo(() => {
-    return users.filter((u) => {
-      const s = searchTerm.toLowerCase();
-      return (
-        u.username.toLowerCase().includes(s) ||
-        (u.email && u.email.toLowerCase().includes(s)) ||
-        (u.profile?.taxId && u.profile.taxId.includes(s))
-      );
-    });
-  }, [users, searchTerm]);
-
-  // Pagination logic
-  const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
-  const paginatedUsers = useMemo(() => {
-    const start = (currentPage - 1) * itemsPerPage;
-    return filteredUsers.slice(start, start + itemsPerPage);
-  }, [filteredUsers, currentPage, itemsPerPage]);
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm]);
+  // ── Table Controls ────────────────────────────────────────────────────────
+  const { paged: paginatedUsers, tableProps } = useTableControls(users, {
+    filterFn: (u, term) => [
+      u.username, u.email ?? "", u.status,
+      u.profile?.firstName ?? "", u.profile?.lastName ?? "",
+      u.profile?.taxId ?? "", u.role?.name ?? "",
+    ].some(v => v.toLowerCase().includes(term)),
+    defaultPerPage: 10,
+  });
 
   const groupedRoles = roles.reduce(
     (acc, r) => {
@@ -393,27 +375,12 @@ export default function UserManagementPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3 w-full md:w-auto flex-wrap md:flex-nowrap">
-          <div className="relative flex-1 md:flex-none">
-            <Search
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-              size={16}
-            />
-            <input
-              type="text"
-              placeholder="Search by username, TaxID..."
-              className="w-full md:w-[280px] pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all shadow-sm shadow-slate-200/50"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-          <button
+        <button
             onClick={openAddModal}
             className="flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm shadow-orange-600/20 whitespace-nowrap"
           >
             <Plus size={16} /> Add User
           </button>
-        </div>
       </div>
 
       {/* CONTENT */}
@@ -426,6 +393,10 @@ export default function UserManagementPage() {
         </div>
       ) : (
         <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm flex-1 flex flex-col">
+          {/* Table Controls Header */}
+          <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50">
+            <TableControls table={tableProps} entityLabel="ผู้ใช้" searchPlaceholder="ค้นหา Username, TaxID, ชื่อ..." />
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
@@ -574,39 +545,10 @@ export default function UserManagementPage() {
             </table>
           </div>
 
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between mt-auto">
-              <span className="text-xs text-slate-500">
-                Showing {(currentPage - 1) * itemsPerPage + 1} to{" "}
-                {Math.min(currentPage * itemsPerPage, filteredUsers.length)} of{" "}
-                {filteredUsers.length} entries
-              </span>
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() =>
-                    setCurrentPage((prev) => Math.max(1, prev - 1))
-                  }
-                  disabled={currentPage === 1}
-                  className="p-1 rounded bg-white border border-slate-200 text-slate-500 disabled:opacity-50 hover:bg-slate-100 transition-colors"
-                >
-                  <ChevronLeft size={16} />
-                </button>
-                <span className="text-xs font-medium text-slate-700 px-3">
-                  Page {currentPage} of {totalPages}
-                </span>
-                <button
-                  onClick={() =>
-                    setCurrentPage((prev) => Math.min(totalPages, prev + 1))
-                  }
-                  disabled={currentPage === totalPages}
-                  className="p-1 rounded bg-white border border-slate-200 text-slate-500 disabled:opacity-50 hover:bg-slate-100 transition-colors"
-                >
-                  <ChevronRight size={16} />
-                </button>
-              </div>
-            </div>
-          )}
+          {/* Pagination Footer */}
+          <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/40">
+            <TableControls table={tableProps} entityLabel="ผู้ใช้" searchPlaceholder="" />
+          </div>
         </div>
       )}
 

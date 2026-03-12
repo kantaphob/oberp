@@ -2,22 +2,36 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import Link from "next/link";
 import { useToast } from "@/app/hooks/useToast";
 import { User, JobRole, Department } from "@/app/generated/prisma";
 import { useSupervisor } from "@/app/hooks/useSupervisor";
 import { SupervisorModal } from "@/app/components/Supervisor/SupervisorModal";
-import { Loader2, Save, ChevronLeft, CheckCircle, AlertCircle, Search } from "lucide-react";
 import { useThailandAddress } from "@/app/hooks/useThailandAddress";
+import {
+  Loader2,
+  Save,
+  ChevronLeft,
+  CheckCircle,
+  AlertCircle,
+  Search,
+  User as UserIcon,
+  MapPin,
+  Briefcase,
+  Phone,
+  Calendar,
+  CreditCard,
+  Shield,
+  Building2,
+  Network,
+  Wand2,
+  Eye,
+  EyeOff,
+  Fingerprint,
+  Lock,
+  Sparkles,
+} from "lucide-react";
+import { getLevelColor, getStatusConfig } from "@/app/lib/ui-configs";
 
 interface UserProfileFormProps {
   initialData?: any;
@@ -39,13 +53,11 @@ export function UserProfileForm({
     handleConfirm,
   } = useSupervisor();
   const { notify } = useToast();
-
   const [loading, setLoading] = useState(false);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [roles, setRoles] = useState<JobRole[]>([]);
   const [unassignedUsers, setUnassignedUsers] = useState<User[]>([]);
 
-  // ✅ Custom Hook จัดการเรื่อง Dropdown จังหวัด/อำเภอ/ตำบล/ไปรษณีย์ทั้งหมด
   const {
     provinces,
     districts,
@@ -64,11 +76,10 @@ export function UserProfileForm({
     },
   });
 
-  // Safe date formatting function
-  const formatDate = (dateString?: string | Date) => {
-    if (!dateString) return "";
+  const formatDate = (d?: string | Date) => {
+    if (!d) return "";
     try {
-      return new Date(dateString).toISOString().split("T")[0];
+      return new Date(d).toISOString().split("T")[0];
     } catch {
       return "";
     }
@@ -78,16 +89,19 @@ export function UserProfileForm({
     userId: initialData?.id || "",
     username: initialData?.username || "",
     email: initialData?.email || "",
+    password: "",
     status: initialData?.status || "ACTIVE",
     roleId: initialData?.roleId || "",
-    // Profile fields (ที่อยู่จะอ่านจาก `address` ของ Hook แทน)
     firstName: initialData?.profile?.firstName || "",
     lastName: initialData?.profile?.lastName || "",
     taxId: initialData?.profile?.taxId || "",
     telephoneNumber: initialData?.profile?.telephoneNumber || "",
     lineId: initialData?.profile?.lineId || "",
     addressDetail: initialData?.profile?.addressDetail || "",
-    departmentId: initialData?.profile?.departmentId || initialData?.role?.departmentId || "",
+    departmentId:
+      initialData?.profile?.departmentId ||
+      initialData?.role?.departmentId ||
+      "",
     gender: initialData?.profile?.gender || "",
     nationality: initialData?.profile?.nationality || "",
     birthDate: formatDate(initialData?.profile?.birthDate),
@@ -95,8 +109,18 @@ export function UserProfileForm({
       formatDate(initialData?.profile?.startDate) || formatDate(new Date()),
   });
 
+  const [createMode, setCreateMode] = useState<"NEW" | "EXISTING">(
+    initialData?.id ? "EXISTING" : "NEW",
+  );
+  const [showPassword, setShowPassword] = useState(false);
+  const [isGeneratingUsername, setIsGeneratingUsername] = useState(false);
+
   const [initialValues] = useState({ ...formData });
-  const isDirty = JSON.stringify(formData) !== JSON.stringify(initialValues);
+  const [initialAddress] = useState({ ...address });
+
+  const isDirty =
+    JSON.stringify(formData) !== JSON.stringify(initialValues) ||
+    JSON.stringify(address) !== JSON.stringify(initialAddress);
 
   useEffect(() => {
     fetchBaseData();
@@ -104,541 +128,828 @@ export function UserProfileForm({
 
   const fetchBaseData = async () => {
     try {
-      // จังหวัด/อำเภอ/ตำบล ถูกจัดการโดย useThailandAddress Hook แล้ว
-      // เหลือแค่ departments, roles, และ unassigned users
       const [deptsRes, rolesRes, usersRes] = await Promise.all([
         fetch("/api/departments"),
         fetch("/api/jobroles"),
         !isEdit ? fetch("/api/users?noProfile=true") : Promise.resolve(null),
       ]);
-
       if (deptsRes.ok) setDepartments(await deptsRes.json());
       if (rolesRes.ok) setRoles(await rolesRes.json());
-      if (usersRes && usersRes.ok) setUnassignedUsers(await usersRes.json());
-    } catch (error) {
-      console.error("Failed to fetch base data:", error);
+      if (usersRes?.ok) setUnassignedUsers(await usersRes.json());
+    } catch (e) {
+      console.error(e);
     }
   };
-
-  // ✅ useEffect สำหรับ Cascade + Zipcode Lookup ถูกย้ายไปอยู่ใน useThailandAddress Hook แล้ว
-  // ไม่ต้องเขียนซ้ำที่นี่อีก!
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
   ) => {
     const { name, value } = e.target;
-
-    if (name === "userId" && !isEdit) {
-      const selectedUser = unassignedUsers.find((u) => u.id === value) as any;
-      setFormData((prev) => ({
-        ...prev,
+    if (name === "userId") {
+      const u = unassignedUsers.find((u) => u.id === value) as any;
+      setFormData((p) => ({
+        ...p,
         userId: value,
-        username: selectedUser?.username || "",
-        email: selectedUser?.email || "",
-        roleId: selectedUser?.roleId || prev.roleId,
-        departmentId: selectedUser?.role?.departmentId || prev.departmentId,
+        username: u?.username || "",
+        email: u?.email || "",
+        roleId: u?.roleId || p.roleId,
+        departmentId: u?.role?.departmentId || p.departmentId,
       }));
     } else if (name === "roleId") {
-      const selectedRole = roles.find((r) => r.id === value);
-      setFormData((prev) => ({
-        ...prev,
+      const r = roles.find((r) => r.id === value);
+      setFormData((p) => ({
+        ...p,
         roleId: value,
-        departmentId: selectedRole?.departmentId || prev.departmentId,
+        departmentId: r?.departmentId || p.departmentId,
       }));
     } else {
-      // ✅ field ที่อยู่ (province/district/subdistrict/zipcode) ส่งไปให้ setAddressField จัดการ
-      setFormData((prev) => ({ ...prev, [name]: value }));
+      setFormData((p) => ({ ...p, [name]: value }));
     }
   };
 
-  // Handler เฉพาะสำหรับ field ที่อยู่ ใช้ใน JSX ของ Address Section
-  const handleAddressChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setAddressField(name as any, value);
+  const generateUsername = async () => {
+    if (!formData.roleId) {
+      notify.error("กรุณาเลือกตำแหน่ง (Role) ก่อนสร้าง Username");
+      return;
+    }
+    setIsGeneratingUsername(true);
+    try {
+      const res = await fetch(
+        `/api/users/generate-username?roleId=${formData.roleId}`,
+      );
+      const data = await res.json();
+      if (res.ok) {
+        setFormData((p) => ({ ...p, username: data.username }));
+      } else {
+        notify.error(data.error || "ไม่สามารถสร้างรหัสได้");
+      }
+    } catch {
+      notify.error("เกิดข้อผิดพลาดในการเชื่อมต่อ");
+    } finally {
+      setIsGeneratingUsername(false);
+    }
+  };
+
+  const generateRandomPassword = () => {
+    const chars =
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    const length = Math.floor(Math.random() * 3) + 7; // 7 to 9 chars
+    let newPassword = "";
+    for (let i = 0; i < length; i++) {
+      newPassword += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setFormData((p) => ({ ...p, password: newPassword }));
+    setShowPassword(true);
+  };
+
+  const handleAddressChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
+  ) => {
+    setAddressField(e.target.name as any, e.target.value);
   };
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
     if (isEdit && !isDirty) {
       notify.info("ไม่มีการเปลี่ยนแปลงข้อมูลที่ต้องบันทึก");
       return;
     }
-
     openModal(async (supervisorUsername) => {
       saveData(supervisorUsername);
     });
   };
 
   const handleCancel = () => {
-    if (isDirty) {
-      if (
-        !confirm("คุณมีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก ต้องการยกเลิกใช่หรือไม่?")
-      ) {
-        return;
-      }
-    }
+    if (
+      isDirty &&
+      !confirm("คุณมีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก ต้องการยกเลิกใช่หรือไม่?")
+    )
+      return;
     router.back();
   };
 
   const saveData = async (approverUsername?: string) => {
     setLoading(true);
     try {
-      // Zipcode validation — zipcode อยู่ใน `address` ของ Hook
       if (address.zipcode) {
-        try {
-          const postcodeRes = await fetch(
-            `/api/postcode/validate?zipcode=${address.zipcode}`,
-          );
-          const postcodeData = await postcodeRes.json();
-
-          if (!postcodeRes.ok || !postcodeData.valid) {
-            notify.error(postcodeData.message || "รหัสไปรษณีย์ไม่ถูกต้อง");
-            setLoading(false);
-            return;
-          }
-        } catch {
-          notify.error("ไม่สามารถตรวจสอบรหัสไปรษณีย์ได้ กรุณาลองใหม่");
+        const r = await fetch(
+          `/api/postcode/validate?zipcode=${address.zipcode}`,
+        );
+        const d = await r.json();
+        if (!r.ok || !d.valid) {
+          notify.error(d.message || "รหัสไปรษณีย์ไม่ถูกต้อง");
           setLoading(false);
           return;
         }
       }
+      // โหมด EDIT: PUT /api/users/{id}
+      // โหมด EXISTING: POST /api/users พร้อม userId ใน body → API จะสร้าง Profile ให้ User ที่มีอยู่
+      // โหมด NEW: POST /api/users → สร้าง User + Profile ใหม่พร้อมกัน
+      let url: string;
+      let method: string;
+      let bodyPayload: Record<string, any>;
 
-      // ถ้ากำลังกรอก Profile ให้กับ User ที่มีอยู่แล้ว (เลือกจาก Dropdown)
-      // ควรใช้ PUT และชี้ไปที่ ID ของ User คนนั้นครับ
-      const targetUserId = isEdit ? initialData.id : formData.userId;
-
-      const url = targetUserId ? `/api/users/${targetUserId}` : "/api/users";
-      const method = targetUserId ? "PUT" : "POST";
-
-      // รวม formData กับ address จาก Hook เป็น payload เดียว
-      const payload = {
-        ...formData,
-        provinceId: address.provinceId,
-        districtId: address.districtId,
-        subdistrictId: address.subdistrictId,
-        zipcode: address.zipcode,
-        approverUsername,
-      };
+      if (isEdit) {
+        url = `/api/users/${initialData.id}`;
+        method = "PUT";
+        bodyPayload = {
+          ...formData,
+          provinceId: address.provinceId,
+          districtId: address.districtId,
+          subdistrictId: address.subdistrictId,
+          zipcode: address.zipcode,
+          approverUsername,
+        };
+      } else if (createMode === "EXISTING") {
+        // ส่ง POST ไปที่ /api/users พร้อม userId → API จะสร้าง Profile ให้ User ที่เลือก
+        url = "/api/users";
+        method = "POST";
+        bodyPayload = {
+          ...formData,
+          userId: formData.userId,
+          provinceId: address.provinceId,
+          districtId: address.districtId,
+          subdistrictId: address.subdistrictId,
+          zipcode: address.zipcode,
+          approverUsername,
+        };
+      } else {
+        // NEW mode: สร้าง User + Profile ใหม่
+        url = "/api/users";
+        method = "POST";
+        bodyPayload = {
+          ...formData,
+          provinceId: address.provinceId,
+          districtId: address.districtId,
+          subdistrictId: address.subdistrictId,
+          zipcode: address.zipcode,
+          approverUsername,
+        };
+      }
 
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(bodyPayload),
       });
-
       const data = await res.json();
-
       if (res.ok) {
-        notify.onSaveSuccess(data.message || (isEdit ? "อัปเดตข้อมูลสำเร็จ" : "สร้างข้อมูลสำเร็จ"));
+        notify.onSaveSuccess(
+          data.message ||
+            (isEdit ? "อัปเดตสำเร็จ" : "บันทึกข้อมูลและสร้างพนักงานสำเร็จ"),
+        );
         router.push("/dashboard/admin/userProfile");
         router.refresh();
-      } else {
-        throw new Error(data.error || "เกิดข้อผิดพลาดในการบันทึกข้อมูล");
-      }
-    } catch (error: any) {
-      notify.onApiError(error, isEdit ? "แก้ไขข้อมูล" : "สร้างพนักงาน");
+      } else throw new Error(data.error || "เกิดข้อผิดพลาด");
+    } catch (err: any) {
+      notify.onApiError(err, isEdit ? "แก้ไขข้อมูล" : "สร้างพนักงาน");
     } finally {
       setLoading(false);
     }
   };
 
+  const selectedRole = roles.find((r) => r.id === formData.roleId);
+  const levelCfg = selectedRole ? getLevelColor(selectedRole.level) : null;
+  const statusCfg = getStatusConfig(formData.status);
+
   return (
-    <div className="space-y-8">
-      <form id="user-profile-form" onSubmit={onSubmit} className="space-y-8">
-      <div className="flex items-center gap-4 mb-6">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => router.back()}
-          type="button"
-        >
-          <ChevronLeft />
-        </Button>
-        <h1 className="text-2xl font-bold">
-          {isEdit ? "แก้ไขข้อมูลเพิ่มเติม" : "เพิ่มข้อมูลพนักงาน"}
-        </h1>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* User Account Section -> Now for Selection/Info */}
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle>{isEdit ? "ข้อมูลบัญชี" : "เลือกพนักงาน"}</CardTitle>
-            <CardDescription>
-              {isEdit
-                ? "รายละเอียดบัญชีผู้ใช้"
-                : "เลือกรายชื่อพนักงานที่ต้องการเพิ่มข้อมูลประวัติ"}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {!isEdit ? (
-              <div className="space-y-2">
-                <Label htmlFor="userId">เลือกรายชื่อพนักงาน</Label>
-                <select
-                  id="userId"
-                  name="userId"
-                  className="w-full p-2 border rounded-md"
-                  value={formData.userId}
-                  onChange={handleChange}
-                  required
-                >
-                  <option value="">-- กรุณาเลือกพนักงาน --</option>
-                  {unassignedUsers.map((user) => (
-                    <option key={user.id} value={user.id}>
-                      {user.username} {user.email ? `(${user.email})` : ""}
-                    </option>
-                  ))}
-                </select>
-                {unassignedUsers.length === 0 && (
-                  <p className="text-[11px] text-amber-600 font-medium">
-                    * ไม่พบรายชื่อพนักงานที่ยังไม่มีข้อมูลประวัติในระบบ
-                  </p>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <Label>Username</Label>
-                <div className="p-2.5 bg-slate-50 border rounded-md font-bold text-slate-700">
-                  @{formData.username}
-                </div>
-              </div>
+    <>
+      <div className="space-y-6 max-w-5xl mx-auto">
+        <form id="user-profile-form" onSubmit={onSubmit}>
+          {/* ── Page Header ─────────────────────────────────── */}
+          <div className="flex items-center gap-3 mb-6">
+            <button
+              type="button"
+              onClick={() => router.back()}
+              className="w-9 h-9 flex items-center justify-center rounded-xl bg-white border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-all shadow-sm"
+            >
+              <ChevronLeft size={18} />
+            </button>
+            <div>
+              <h1 className="text-xl font-bold text-slate-800">
+                {isEdit ? "แก้ไขข้อมูลพนักงาน" : "เพิ่มข้อมูลพนักงานใหม่"}
+              </h1>
+              <p className="text-[12px] text-slate-400 mt-0.5">
+                {isEdit
+                  ? `แก้ไขโปรไฟล์ · @${formData.username}`
+                  : "กรอกข้อมูลพนักงานและที่อยู่ให้ครบถ้วน"}
+              </p>
+            </div>
+            {isDirty && (
+              <span className="ml-auto px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-[11px] font-semibold">
+                ● มีการเปลี่ยนแปลง
+              </span>
             )}
+          </div>
 
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="status">สถานะบัญชี</Label>
-                <select
-                  id="status"
-                  name="status"
-                  className="w-full p-2 border rounded-md"
-                  value={formData.status}
-                  onChange={handleChange}
-                >
-                  <option value="ACTIVE">ACTIVE</option>
-                  <option value="INACTIVE">INACTIVE</option>
-                  <option value="PENDING">PENDING</option>
-                </select>
-              </div>
-
-              {isEdit && formData.email && (
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    name="email"
-                    type="email"
-                    value={formData.email}
-                    onChange={handleChange}
-                  />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            {/* ── Col 1: Account + Role ────────────────────── */}
+            <div className="space-y-5">
+              {/* Role & Dept Card */}
+              <div className="pf-glass pf-card">
+                <div className="pf-card-header">
+                  <p className="pf-section-title">
+                    <Network size={12} className="text-slate-400" />
+                    ตำแหน่งและสังกัด
+                  </p>
                 </div>
-              )}
-            </div>
-
-          </CardContent>
-        </Card>
-
-        {/* Personal Info Section */}
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle>ข้อมูลส่วนตัว</CardTitle>
-            <CardDescription>ข้อมูลพื้นฐานของพนักงาน</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="firstName">ชื่อจริง</Label>
-                <Input
-                  id="firstName"
-                  name="firstName"
-                  value={formData.firstName}
-                  onChange={handleChange}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="lastName">นามสกุล</Label>
-                <Input
-                  id="lastName"
-                  name="lastName"
-                  value={formData.lastName}
-                  onChange={handleChange}
-                  required
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="taxId">เลขบัตรประชาชน (13 หลัก)</Label>
-                <Input
-                  id="taxId"
-                  name="taxId"
-                  maxLength={13}
-                  value={formData.taxId}
-                  onChange={handleChange}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="telephoneNumber">เบอร์โทรศัพท์</Label>
-                <Input
-                  id="telephoneNumber"
-                  name="telephoneNumber"
-                  maxLength={10}
-                  value={formData.telephoneNumber}
-                  onChange={handleChange}
-                  required
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="gender">เพศ</Label>
-                <select
-                  id="gender"
-                  name="gender"
-                  className="w-full p-2 border rounded-md"
-                  value={formData.gender}
-                  onChange={handleChange}
-                >
-                  <option value="">ระบุเพศ</option>
-                  <option value="MALE">ชาย</option>
-                  <option value="FEMALE">หญิง</option>
-                  <option value="OTHER">อื่นๆ</option>
-                </select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="birthDate">วันเกิด</Label>
-                <Input
-                  id="birthDate"
-                  name="birthDate"
-                  type="date"
-                  value={formData.birthDate}
-                  onChange={handleChange}
-                />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Address & Organization Section */}
-        <Card className="md:col-span-2 shadow-sm">
-          <CardHeader>
-            <CardTitle>ที่อยู่และข้อมูลองค์กร</CardTitle>
-          </CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="md:col-span-2 space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="addressDetail">
-                  ที่อยู่ (เลขที่, หมู่, ถนน)
-                </Label>
-                <Input
-                  id="addressDetail"
-                  name="addressDetail"
-                  value={formData.addressDetail}
-                  onChange={handleChange}
-                  required
-                />
-              </div>
-              {/* ✅ ใช้ address จาก useThailandAddress Hook */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="provinceId">จังหวัด</Label>
-                  <select
-                    id="provinceId"
-                    name="provinceId"
-                    className="w-full p-2 border rounded-md"
-                    value={address.provinceId}
-                    onChange={handleAddressChange}
-                    required
-                  >
-                    <option value="">เลือกจังหวัด</option>
-                    {provinces.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.nameTh}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="districtId">อำเภอ/เขต</Label>
-                  <select
-                    id="districtId"
-                    name="districtId"
-                    className="w-full p-2 border rounded-md"
-                    value={address.districtId}
-                    onChange={handleAddressChange}
-                    required
-                    disabled={!address.provinceId}
-                  >
-                    <option value="">เลือกอำเภอ</option>
-                    {districts.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.nameTh}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="subdistrictId">ตำบล/แขวง</Label>
-                  <select
-                    id="subdistrictId"
-                    name="subdistrictId"
-                    className="w-full p-2 border rounded-md"
-                    value={address.subdistrictId}
-                    onChange={handleAddressChange}
-                    required
-                    disabled={!address.districtId}
-                  >
-                    <option value="">เลือกตำบล</option>
-                    {subdistricts.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.nameTh}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="zipcode">รหัสไปรษณีย์</Label>
-                  <div className="relative">
-                    <Input
-                      id="zipcode"
-                      name="zipcode"
-                      maxLength={5}
-                      placeholder="เช่น 10110"
-                      value={address.zipcode}
-                      onChange={(e) => {
-                        const zip = e.target.value.replace(/\D/g, "");
-                        setAddressField("zipcode", zip);
-                        lookupByZipcode(zip); // 🔍 Reverse Lookup ทันทีที่ครบ 5 หลัก
-                      }}
-                      className={`pr-8 ${
-                        zipcodeStatus === "found_single" ? "border-green-500 focus:ring-green-500" :
-                        zipcodeStatus === "not_found" || zipcodeStatus === "error" ? "border-red-400" :
-                        ""
-                      }`}
-                    />
-                    {/* Status Icon */}
-                    <div className="absolute right-2 top-1/2 -translate-y-1/2">
-                      {zipcodeStatus === "loading" && <Loader2 className="w-4 h-4 animate-spin text-gray-400" />}
-                      {(zipcodeStatus === "found_single" || zipcodeStatus === "found_multi") && <CheckCircle className="w-4 h-4 text-green-500" />}
-                      {(zipcodeStatus === "not_found" || zipcodeStatus === "error") && <AlertCircle className="w-4 h-4 text-red-400" />}
+                <div className="pf-card-body space-y-4">
+                  <div className="pf-field">
+                    <label className="pf-label">
+                      แผนก (Department) <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <Building2
+                        size={13}
+                        className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                      />
+                      <select
+                        name="departmentId"
+                        value={formData.departmentId}
+                        onChange={handleChange}
+                        required
+                        className="pf-input pl-8"
+                      >
+                        <option value="">— เลือกแผนก —</option>
+                        {departments.map((d) => (
+                          <option key={d.id} value={d.id}>
+                            {d.name}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   </div>
-                  {/* Feedback message */}
-                  {zipcodeStatus === "found_single" && (
-                    <p className="text-[11px] text-green-600 font-medium flex items-center gap-1">
-                      <CheckCircle className="w-3 h-3" /> กรอกที่อยู่อัตโนมัติเรียบร้อย
-                    </p>
+
+                  <div className="pf-field">
+                    <label className="pf-label">
+                      ตำแหน่ง (Job Role) <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      name="roleId"
+                      value={formData.roleId}
+                      onChange={handleChange}
+                      required
+                      className="pf-input"
+                    >
+                      <option value="">— เลือกตำแหน่ง —</option>
+                      {roles.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          [LV.{r.level}] {r.name}
+                        </option>
+                      ))}
+                    </select>
+
+                    {/* Role preview badge */}
+                    {selectedRole && levelCfg && (
+                      <div className="mt-2 flex items-center gap-2">
+                        <span
+                          className="pf-badge"
+                          style={{
+                            background: levelCfg.bg,
+                            border: `1px solid ${levelCfg.border}`,
+                            color: levelCfg.text,
+                          }}
+                        >
+                          LV.{selectedRole.level}
+                        </span>
+                        <span className="text-[12px] font-semibold text-slate-700">
+                          {selectedRole.name}
+                        </span>
+                        <span className="ml-auto text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-500">
+                          {selectedRole.prefix}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              {/* Account Card */}
+              <div className="pf-glass pf-card">
+                <div className="pf-card-header">
+                  <p className="pf-section-title">
+                    <Shield size={12} className="text-slate-400" />
+                    {isEdit ? "บัญชีผู้ใช้" : "เลือกพนักงาน"}
+                  </p>
+                </div>
+                <div className="pf-card-body space-y-4">
+                  {!isEdit && (
+                    <div className="flex p-1 bg-slate-100/80 rounded-xl mb-4">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCreateMode("NEW");
+                          setFormData((p) => ({ ...p, userId: "" }));
+                        }}
+                        className={`flex-1 flex items-center justify-center gap-2 py-2 text-[11px] font-bold rounded-lg transition-all ${createMode === "NEW" ? "bg-white text-orange-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                      >
+                        <Sparkles size={13} /> สร้างบัญชีใหม่
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCreateMode("EXISTING")}
+                        className={`flex-1 flex items-center justify-center gap-2 py-2 text-[11px] font-bold rounded-lg transition-all ${createMode === "EXISTING" ? "bg-white text-orange-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                      >
+                        <UserIcon size={13} /> เลือกจากระบบ
+                      </button>
+                    </div>
                   )}
-                  {zipcodeStatus === "found_multi" && (
-                    <p className="text-[11px] text-amber-600 font-medium flex items-center gap-1">
-                      <Search className="w-3 h-3" /> พบหลายตำบล กรุณาเลือกตำบลด้านบน
-                    </p>
+
+                  {!isEdit && createMode === "EXISTING" && (
+                    <div className="pf-field">
+                      <label className="pf-label">
+                        รายชื่อพนักงาน <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        name="userId"
+                        value={formData.userId}
+                        onChange={handleChange}
+                        required
+                        className="pf-input"
+                      >
+                        <option value="">— กรุณาเลือกพนักงาน —</option>
+                        {unassignedUsers.map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.username}
+                            {(u as any).email ? ` · ${(u as any).email}` : ""}
+                          </option>
+                        ))}
+                      </select>
+                      {unassignedUsers.length === 0 && (
+                        <div className="mt-4 p-4 rounded-2xl bg-amber-50 border border-amber-200">
+                          <p className="text-[11px] text-amber-700 font-bold flex items-center gap-2 mb-2">
+                            <AlertCircle size={14} />{" "}
+                            ไม่พบพนักงานที่ยังไม่มีข้อมูลประวัติ
+                          </p>
+                          <p className="text-[10px] text-amber-600 leading-relaxed">
+                            พนักงานทุกคนในระบบมีข้อมูลประวัติครบถ้วนแล้ว
+                            คุณสามารถเลือกโหมด "สร้างบัญชีใหม่"
+                            เพื่อเพิ่มบุคลากรคนใหม่เข้าสู่ระบบได้ทันที
+                          </p>
+                        </div>
+                      )}
+                    </div>
                   )}
-                  {zipcodeStatus === "not_found" && (
-                    <p className="text-[11px] text-red-500 font-medium flex items-center gap-1">
-                      <AlertCircle className="w-3 h-3" /> ไม่พบรหัสไปรษณีย์นี้
-                    </p>
+
+                  {(isEdit ||
+                    createMode === "NEW" ||
+                    (createMode === "EXISTING" && formData.userId)) && (
+                    <>
+                      {/* Account Info (New or Edit) */}
+                      <div className="pf-field">
+                        <label className="pf-label">
+                          Username <span className="text-red-500">*</span>
+                        </label>
+                        <div className="flex gap-2">
+                          <div className="relative flex-1">
+                            <UserIcon
+                              size={13}
+                              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                            />
+                            <input
+                              name="username"
+                              value={formData.username}
+                              onChange={handleChange}
+                              required
+                              disabled={isEdit || createMode === "EXISTING"}
+                              className={`pf-input pl-8 ${isEdit || createMode === "EXISTING" ? "bg-slate-100 font-bold text-slate-500" : ""}`}
+                              placeholder="กรุณากด Generate"
+                            />
+                          </div>
+                          {!isEdit && createMode === "NEW" && (
+                            <button
+                              type="button"
+                              onClick={generateUsername}
+                              disabled={
+                                isGeneratingUsername || !formData.roleId
+                              }
+                              className={`px-3 py-2 rounded-xl border text-[10px] font-bold uppercase transition-all whitespace-nowrap flex items-center gap-1.5 ${!formData.roleId ? "bg-slate-50 text-slate-300 pointer-events-none" : "bg-orange-50 border-orange-100 text-orange-600 hover:bg-orange-100"}`}
+                            >
+                              {isGeneratingUsername ? (
+                                <Loader2 size={12} className="animate-spin" />
+                              ) : (
+                                <Wand2 size={12} />
+                              )}
+                              Auto
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {!isEdit && createMode === "NEW" && (
+                        <div className="pf-field">
+                          <label className="pf-label">
+                            Password <span className="text-red-500">*</span>
+                          </label>
+                          <div className="flex gap-2">
+                            <div className="relative flex-1">
+                              <Lock
+                                size={13}
+                                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                              />
+                              <input
+                                name="password"
+                                type={showPassword ? "text" : "password"}
+                                value={formData.password}
+                                onChange={handleChange}
+                                required
+                                className="pf-input pl-8"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                              >
+                                {showPassword ? (
+                                  <EyeOff size={14} />
+                                ) : (
+                                  <Eye size={14} />
+                                )}
+                              </button>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={generateRandomPassword}
+                              className="px-3 py-2 rounded-xl border bg-slate-50 border-slate-200 text-slate-600 text-[10px] font-bold uppercase hover:bg-slate-100 transition-all flex items-center gap-1.5"
+                            >
+                              <Sparkles size={12} /> Random
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </>
                   )}
+
+                  {/* Status */}
+                  <div className="pf-field">
+                    <label className="pf-label">สถานะบัญชี</label>
+                    <select
+                      name="status"
+                      value={formData.status}
+                      onChange={handleChange}
+                      className="pf-input"
+                    >
+                      <option value="ACTIVE">ACTIVE</option>
+                      <option value="INACTIVE">INACTIVE</option>
+                      <option value="PENDING">PENDING</option>
+                    </select>
+                    <div className="mt-2">
+                      <span
+                        className="pf-badge"
+                        style={{
+                          background: statusCfg.bg,
+                          border: `1px solid ${statusCfg.border}`,
+                          color: statusCfg.text,
+                        }}
+                      >
+                        <span
+                          className="w-1.5 h-1.5 rounded-full"
+                          style={{ background: statusCfg.dot }}
+                        />
+                        {statusCfg.label}
+                      </span>
+                    </div>
+                  </div>
+
+                  {isEdit && formData.email && (
+                    <div className="pf-field">
+                      <label className="pf-label">Email</label>
+                      <input
+                        name="email"
+                        type="email"
+                        value={formData.email}
+                        onChange={handleChange}
+                        className="pf-input"
+                      />
+                    </div>
+                  )}
+
+                  <div className="pf-field">
+                    <label className="pf-label">
+                      วันที่เริ่มงาน <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <Calendar
+                        size={13}
+                        className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                      />
+                      <input
+                        name="startDate"
+                        type="date"
+                        value={formData.startDate}
+                        onChange={handleChange}
+                        required
+                        className="pf-input pl-8"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="roleId" className="text-orange-600 font-bold">ตำแหน่ง (Role)</Label>
-                <select
-                  id="roleId"
-                  name="roleId"
-                  className="w-full p-2 border border-orange-200 rounded-md focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
-                  value={formData.roleId}
-                  onChange={handleChange}
-                  required
-                >
-                  <option value="">เลือกตำแหน่ง</option>
-                  {roles.map((role) => (
-                    <option key={role.id} value={role.id}>
-                      {role.name} (L{role.level})
-                    </option>
-                  ))}
-                </select>
+            {/* ── Col 2-3: Personal Info ───────────────────── */}
+            <div className="lg:col-span-2 space-y-5">
+              {/* Personal Info */}
+              <div className="pf-glass pf-card">
+                <div className="pf-card-header">
+                  <p className="pf-section-title">
+                    <UserIcon size={12} className="text-slate-400" />
+                    ข้อมูลส่วนตัว
+                  </p>
+                </div>
+                <div className="pf-card-body space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="pf-field">
+                      <label className="pf-label">
+                        ชื่อจริง <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        name="firstName"
+                        value={formData.firstName}
+                        onChange={handleChange}
+                        required
+                        className="pf-input"
+                        placeholder="ชื่อจริง"
+                      />
+                    </div>
+                    <div className="pf-field">
+                      <label className="pf-label">
+                        นามสกุล <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        name="lastName"
+                        value={formData.lastName}
+                        onChange={handleChange}
+                        required
+                        className="pf-input"
+                        placeholder="นามสกุล"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="pf-field">
+                      <label className="pf-label">
+                        เลขบัตรประชาชน (13 หลัก){" "}
+                        <span className="text-red-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <CreditCard
+                          size={13}
+                          className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                        />
+                        <input
+                          name="taxId"
+                          value={formData.taxId}
+                          onChange={handleChange}
+                          maxLength={13}
+                          required
+                          className="pf-input pl-8"
+                          placeholder="x-xxxx-xxxxx-xx-x"
+                        />
+                      </div>
+                    </div>
+                    <div className="pf-field">
+                      <label className="pf-label">
+                        เบอร์โทรศัพท์ <span className="text-red-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <Phone
+                          size={13}
+                          className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                        />
+                        <input
+                          name="telephoneNumber"
+                          value={formData.telephoneNumber}
+                          onChange={handleChange}
+                          maxLength={10}
+                          required
+                          className="pf-input pl-8"
+                          placeholder="0xx-xxx-xxxx"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="pf-field">
+                      <label className="pf-label">เพศ</label>
+                      <select
+                        name="gender"
+                        value={formData.gender}
+                        onChange={handleChange}
+                        className="pf-input"
+                      >
+                        <option value="">— ระบุเพศ —</option>
+                        <option value="MALE">ชาย</option>
+                        <option value="FEMALE">หญิง</option>
+                        <option value="OTHER">อื่นๆ</option>
+                      </select>
+                    </div>
+                    <div className="pf-field">
+                      <label className="pf-label">วันเกิด</label>
+                      <input
+                        name="birthDate"
+                        type="date"
+                        value={formData.birthDate}
+                        onChange={handleChange}
+                        className="pf-input"
+                      />
+                    </div>
+                    <div className="pf-field">
+                      <label className="pf-label">สัญชาติ</label>
+                      <input
+                        name="nationality"
+                        value={formData.nationality}
+                        onChange={handleChange}
+                        className="pf-input"
+                        placeholder="ไทย"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pf-field">
+                    <label className="pf-label">Line ID</label>
+                    <input
+                      name="lineId"
+                      value={formData.lineId}
+                      onChange={handleChange}
+                      className="pf-input"
+                      placeholder="@lineid"
+                    />
+                  </div>
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="departmentId" className="text-orange-600 font-bold">แผนก (Department)</Label>
-                <select
-                  id="departmentId"
-                  name="departmentId"
-                  className="w-full p-2 border border-orange-200 rounded-md focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
-                  value={formData.departmentId}
-                  onChange={handleChange}
-                  required
-                >
-                  <option value="">เลือกแผนก</option>
-                  {departments.map((dept) => (
-                    <option key={dept.id} value={dept.id}>
-                      {dept.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="startDate">วันที่เริ่มงาน</Label>
-                <Input
-                  id="startDate"
-                  name="startDate"
-                  type="date"
-                  value={formData.startDate}
-                  onChange={handleChange}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="lineId">Line ID</Label>
-                <Input
-                  id="lineId"
-                  name="lineId"
-                  value={formData.lineId}
-                  onChange={handleChange}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="nationality">สัญชาติ</Label>
-                <Input
-                  id="nationality"
-                  name="nationality"
-                  value={formData.nationality}
-                  onChange={handleChange}
-                  placeholder="เช่น ไทย"
-                />
+
+              {/* Address */}
+              <div className="pf-glass pf-card">
+                <div className="pf-card-header">
+                  <p className="pf-section-title">
+                    <MapPin size={12} className="text-slate-400" />
+                    ที่อยู่
+                  </p>
+                </div>
+                <div className="pf-card-body space-y-4">
+                  <div className="pf-field">
+                    <label className="pf-label">
+                      เลขที่, หมู่, ถนน <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      name="addressDetail"
+                      value={formData.addressDetail}
+                      onChange={handleChange}
+                      required
+                      className="pf-input"
+                      placeholder="เช่น 123 หมู่ 4 ถนนสุขุมวิท"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="pf-field">
+                      <label className="pf-label">
+                        จังหวัด <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        name="provinceId"
+                        value={address.provinceId}
+                        onChange={handleAddressChange}
+                        required
+                        className="pf-input pf-select-addr"
+                      >
+                        <option value="">— เลือกจังหวัด —</option>
+                        {provinces.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.nameTh}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="pf-field">
+                      <label className="pf-label">
+                        อำเภอ/เขต <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        name="districtId"
+                        value={address.districtId}
+                        onChange={handleAddressChange}
+                        required
+                        disabled={!address.provinceId}
+                        className="pf-input pf-select-addr"
+                      >
+                        <option value="">— เลือกอำเภอ —</option>
+                        {districts.map((d) => (
+                          <option key={d.id} value={d.id}>
+                            {d.nameTh}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="pf-field">
+                      <label className="pf-label">
+                        ตำบล/แขวง <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        name="subdistrictId"
+                        value={address.subdistrictId}
+                        onChange={handleAddressChange}
+                        required
+                        disabled={!address.districtId}
+                        className="pf-input pf-select-addr"
+                      >
+                        <option value="">— เลือกตำบล —</option>
+                        {subdistricts.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.nameTh}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="pf-field">
+                      <label className="pf-label">รหัสไปรษณีย์</label>
+                      <div className="relative">
+                        <input
+                          name="zipcode"
+                          maxLength={5}
+                          placeholder="เช่น 10110"
+                          value={address.zipcode}
+                          onChange={(e) => {
+                            const zip = e.target.value.replace(/\D/g, "");
+                            setAddressField("zipcode", zip);
+                            lookupByZipcode(zip);
+                          }}
+                          className={`pf-input pr-9 ${zipcodeStatus === "found_single" ? "zipcode-ok" : zipcodeStatus === "not_found" || zipcodeStatus === "error" ? "zipcode-err" : ""}`}
+                        />
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                          {zipcodeStatus === "loading" && (
+                            <Loader2
+                              size={14}
+                              className="animate-spin text-slate-400"
+                            />
+                          )}
+                          {(zipcodeStatus === "found_single" ||
+                            zipcodeStatus === "found_multi") && (
+                            <CheckCircle size={14} className="text-green-500" />
+                          )}
+                          {(zipcodeStatus === "not_found" ||
+                            zipcodeStatus === "error") && (
+                            <AlertCircle size={14} className="text-red-400" />
+                          )}
+                        </div>
+                      </div>
+                      {zipcodeStatus === "found_single" && (
+                        <p className="text-[10px] text-green-600 font-semibold mt-1.5 flex items-center gap-1">
+                          <CheckCircle size={10} /> กรอกที่อยู่อัตโนมัติแล้ว
+                        </p>
+                      )}
+                      {zipcodeStatus === "found_multi" && (
+                        <p className="text-[10px] text-amber-600 font-semibold mt-1.5 flex items-center gap-1">
+                          <Search size={10} /> พบหลายตำบล — กรุณาเลือก
+                        </p>
+                      )}
+                      {zipcodeStatus === "not_found" && (
+                        <p className="text-[10px] text-red-500 font-semibold mt-1.5 flex items-center gap-1">
+                          <AlertCircle size={10} /> ไม่พบรหัสไปรษณีย์นี้
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
-          </CardContent>
-        </Card>
-      </div>
-    </form>
+          </div>
 
-      {children}
+          {/* ── Footer Actions ───────────────────────────── */}
+          <div className="flex items-center justify-between pt-5 mt-2 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={handleCancel}
+              className="px-5 py-2.5 rounded-xl text-sm font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 transition-all shadow-sm"
+            >
+              ยกเลิก
+            </button>
+            <button
+              type="submit"
+              form="user-profile-form"
+              disabled={loading}
+              className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 transition-all shadow-md shadow-indigo-600/25"
+            >
+              {loading ? (
+                <Loader2 size={15} className="animate-spin" />
+              ) : (
+                <Save size={15} />
+              )}
+              {loading
+                ? "กำลังบันทึก..."
+                : isEdit
+                  ? "บันทึกการแก้ไข"
+                  : "สร้างข้อมูลพนักงาน"}
+            </button>
+          </div>
+        </form>
 
-      <div className="flex justify-end gap-4 pt-6 border-t">
-        <Button variant="outline" type="button" onClick={handleCancel}>
-          ยกเลิก
-        </Button>
-        <Button
-          form="user-profile-form"
-          type="submit"
-          disabled={loading}
-          className="bg-orange-600 hover:bg-orange-700 min-w-[150px]"
-        >
-          {loading ? (
-            <Loader2 className="animate-spin mr-2" />
-          ) : (
-            <Save className="mr-2" />
-          )}
-          {isEdit ? "บันทึกการแก้ไข" : "สร้างข้อมูลพนักงาน"}
-        </Button>
+        {children}
       </div>
 
       <SupervisorModal
@@ -647,6 +958,6 @@ export function UserProfileForm({
         onConfirm={handleConfirm}
         loading={supervisorLoading}
       />
-    </div>
+    </>
   );
 }

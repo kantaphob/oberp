@@ -4,6 +4,8 @@ import React, { useState } from "react";
 import { 
   Activity, Search, Filter, Calendar, Clock, User, FileText, Download, ShieldAlert, CheckCircle, AlertCircle
 } from "lucide-react";
+import { useTableControls } from "@/app/hooks/useTableControls";
+import { TableControls } from "@/app/components/Dashboard/TableControls";
 
 // Mock data for activity logs since we don't have a DB table for it yet
 const initialLogs = [
@@ -50,8 +52,17 @@ const initialLogs = [
 ];
 
 export default function ActivityLogPage() {
-  const [searchTerm, setSearchTerm] = useState("");
   const [logs] = useState(initialLogs);
+
+  const { paged, tableProps } = useTableControls(
+    [...logs].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()),
+    {
+      filterFn: (log, term) => [
+        log.action, log.description, log.user, log.role, log.status
+      ].some(v => v.toLowerCase().includes(term)),
+      defaultPerPage: 10,
+    }
+  );
 
   const formatTime = (isoString: string) => {
     const date = new Date(isoString);
@@ -86,21 +97,12 @@ export default function ActivityLogPage() {
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row gap-4 items-center justify-between">
-        <div className="relative w-full sm:max-w-md">
-          <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-slate-400">
-            <Search size={18} />
-          </div>
-          <input
-            type="text"
-            placeholder="ค้นหาชื่อผู้ใช้, กิจกรรม, หรือรายละเอียด..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium"
-          />
+      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col lg:flex-row gap-4 items-center justify-between">
+        <div className="flex-1 w-full">
+          <TableControls table={tableProps} entityLabel="บันทึก" searchPlaceholder="ค้นหาชื่อผู้ใช้, กิจกรรม, หรือรายละเอียด..." />
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0 hide-scrollbar">
+        <div className="flex items-center gap-2 w-full lg:w-auto overflow-x-auto pb-1 lg:pb-0 hide-scrollbar shrink-0">
           <button className="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-100 transition-colors text-sm font-medium whitespace-nowrap">
             <Filter size={14} />
             กรองข้อมูล
@@ -126,7 +128,7 @@ export default function ActivityLogPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {logs.map((log) => (
+              {paged.map((log) => (
                 <tr key={log.id} className="hover:bg-slate-50/50 transition-colors group">
                   <td className="px-6 py-4">
                     <div className="flex items-center">
@@ -178,13 +180,8 @@ export default function ActivityLogPage() {
             </tbody>
           </table>
         </div>
-        <div className="px-6 py-4 border-t border-slate-200 bg-slate-50/50 flex items-center justify-between">
-            <span className="text-sm font-medium text-slate-500">แสดงข้อมูล {logs.length} รายการ</span>
-            <div className="flex gap-1">
-                <button className="px-3 py-1 border border-slate-200 rounded text-sm text-slate-500 hover:bg-white disabled:opacity-50">ก่อนหน้า</button>
-                <button className="px-3 py-1 border border-blue-200 bg-blue-50 rounded text-sm text-blue-600 font-medium">1</button>
-                <button className="px-3 py-1 border border-slate-200 rounded text-sm text-slate-500 hover:bg-white disabled:opacity-50">ถัดไป</button>
-            </div>
+        <div className="px-6 py-4 border-t border-slate-200 bg-slate-50/50">
+            <TableControls table={tableProps} entityLabel="บันทึก" searchPlaceholder="" />
         </div>
       </div>
     </div>

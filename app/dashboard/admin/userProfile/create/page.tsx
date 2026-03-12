@@ -1,9 +1,9 @@
-import { UserProfileForm } from "../_components/UserProfileForm";
+import { AdminUserForm } from "../_components/AdminUserForm";
 
 export default function CreateUserProfilePage() {
   return (
     <div className="container mx-auto py-10">
-      <UserProfileForm />
+      <AdminUserForm />
     </div>
   );
 }

@@ -1,9 +1,11 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useTableControls } from "@/app/hooks/useTableControls";
+import { TableControls } from "@/app/components/Dashboard/TableControls";
 import { 
-  Users, Plus, Search, Edit2, Trash2, X, Shield, Mail, CheckCircle, AlertCircle, Building2, ChevronLeft, ChevronRight, Fingerprint, Eye, EyeOff, Wand2
+  Users, Plus, Edit2, Trash2, X, Shield, Mail, CheckCircle, AlertCircle, Building2, Fingerprint, Eye, EyeOff, Wand2
 } from "lucide-react";
 import { useSession } from "next-auth/react";
 
@@ -53,13 +55,13 @@ export default function EmployeeManagementPage() {
   const [roles, setRoles] = useState<JobRole[]>([]);
   const [loading, setLoading] = useState(true);
   
-  const [searchTerm, setSearchTerm] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"ADD" | "EDIT">("ADD");
 
-  // Pagination State
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 8;
+  // Filters State
+  const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const [roleFilter, setRoleFilter] = useState<string>("ALL");
+  const [deptFilter, setDeptFilter] = useState<string>("ALL");
 
   // Form State
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -291,25 +293,32 @@ export default function EmployeeManagementPage() {
     }
   };
 
-  const filteredUsers = useMemo(() => {
-    return users.filter((u) => {
-      const s = searchTerm.toLowerCase();
-      return u.username.toLowerCase().includes(s) ||
-             (u.email && u.email.toLowerCase().includes(s)) ||
-             (u.profile?.taxId && u.profile.taxId.includes(s));
-    });
-  }, [users, searchTerm]);
+  // ── Table Controls ──────────────────────────────────────────────────
+  const { paged: paginatedUsers, tableProps } = useTableControls(
+    users
+      .filter((u) => {
+        const matchesStatus = statusFilter === "ALL" || u.status === statusFilter;
+        const matchesRole = roleFilter === "ALL" || u.roleId === roleFilter;
+        const matchesDept = deptFilter === "ALL" || u.role?.department?.name === deptFilter;
+        return matchesStatus && matchesRole && matchesDept;
+      })
+      .sort((a, b) => {
+        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return dateB - dateA;
+      }),
+    {
+      filterFn: (u, term) => [
+        u.username, u.email ?? "", u.status,
+        u.profile?.firstName ?? "", u.profile?.lastName ?? "",
+        u.profile?.taxId ?? "", u.role?.name ?? "",
+        u.role?.department?.name ?? "",
+      ].some(v => v.toLowerCase().includes(term)),
+      defaultPerPage: 10,
+    }
+  );
 
-  // Pagination logic
-  const totalPages = Math.ceil(filteredUsers.length / itemsPerPage) || 1;
-  const paginatedUsers = useMemo(() => {
-    const start = (currentPage - 1) * itemsPerPage;
-    return filteredUsers.slice(start, start + itemsPerPage);
-  }, [filteredUsers, currentPage, itemsPerPage]);
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm]);
+  const allDepartments = Array.from(new Set(roles.map(r => r.department?.name).filter(Boolean))) as string[];
 
   const groupedRoles = roles.reduce((acc, r) => {
     const deptName = r.department?.name || "No Department (Management/Others)";
@@ -332,24 +341,12 @@ export default function EmployeeManagementPage() {
           </p>
         </div>
         
-        <div className="flex items-center gap-3 w-full md:w-auto flex-wrap md:flex-nowrap">
-          <div className="relative flex-1 md:flex-none">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-            <input
-              type="text"
-              placeholder="Search by username, TaxID..."
-              className="w-full md:w-[280px] pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all shadow-sm shadow-slate-200/50"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-          <button 
+        <button 
             onClick={openAddModal}
             className="flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm shadow-orange-600/20 whitespace-nowrap"
           >
             <Plus size={16} /> Add Employee
           </button>
-        </div>
       </div>
 
       {/* CONTENT */}
@@ -360,6 +357,64 @@ export default function EmployeeManagementPage() {
         </div>
       ) : (
         <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm flex-1 flex flex-col">
+          <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50 flex flex-col lg:flex-row gap-4">
+            <div className="flex-1">
+              <TableControls table={tableProps} entityLabel="พนักงาน" searchPlaceholder="ค้นหา Username, TaxID, ชื่อ..." />
+            </div>
+            
+            {/* Custom Filters */}
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-tight">Status:</label>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="bg-white border border-slate-200 rounded-lg text-xs font-semibold py-1.5 px-3 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none shadow-sm"
+                >
+                  <option value="ALL">All Status</option>
+                  <option value="ACTIVE">Active</option>
+                  <option value="PENDING">Pending</option>
+                  <option value="INACTIVE">Inactive</option>
+                  <option value="ON_LEAVE">On Leave</option>
+                  <option value="RESIGNED">Resigned</option>
+                  <option value="TERMINATED">Terminated</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-tight">Dept:</label>
+                <select
+                  value={deptFilter}
+                  onChange={(e) => {
+                    setDeptFilter(e.target.value);
+                    setRoleFilter("ALL"); // Reset role filter when dept changes
+                  }}
+                  className="bg-white border border-slate-200 rounded-lg text-xs font-semibold py-1.5 px-3 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none shadow-sm max-w-[150px]"
+                >
+                  <option value="ALL">All Departments</option>
+                  {allDepartments.map(dept => (
+                    <option key={dept} value={dept}>{dept}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-tight">Role:</label>
+                <select
+                  value={roleFilter}
+                  onChange={(e) => setRoleFilter(e.target.value)}
+                  className="bg-white border border-slate-200 rounded-lg text-xs font-semibold py-1.5 px-3 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none shadow-sm max-w-[180px]"
+                >
+                  <option value="ALL">All Roles</option>
+                  {roles
+                    .filter(r => deptFilter === "ALL" || r.department?.name === deptFilter)
+                    .map(r => (
+                      <option key={r.id} value={r.id}>{r.name} ({r.prefix})</option>
+                    ))}
+                </select>
+              </div>
+            </div>
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
@@ -473,33 +528,9 @@ export default function EmployeeManagementPage() {
             </table>
           </div>
 
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between mt-auto">
-              <span className="text-xs text-slate-500">
-                Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredUsers.length)} of {filteredUsers.length} entries
-              </span>
-              <div className="flex items-center gap-1">
-                <button 
-                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                  disabled={currentPage === 1}
-                  className="p-1 rounded bg-white border border-slate-200 text-slate-500 disabled:opacity-50 hover:bg-slate-100 transition-colors"
-                >
-                  <ChevronLeft size={16} />
-                </button>
-                <span className="text-xs font-medium text-slate-700 px-3">
-                  Page {currentPage} of {totalPages}
-                </span>
-                <button 
-                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                  disabled={currentPage === totalPages}
-                  className="p-1 rounded bg-white border border-slate-200 text-slate-500 disabled:opacity-50 hover:bg-slate-100 transition-colors"
-                >
-                  <ChevronRight size={16} />
-                </button>
-              </div>
-            </div>
-          )}
+          <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/40">
+            <TableControls table={tableProps} entityLabel="พนักงาน" searchPlaceholder="" />
+          </div>
         </div>
       )}
 

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { UserProfileForm } from "../../_components/UserProfileForm";
+import { AdminUserForm } from "../../_components/AdminUserForm";
 import { useParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 
@@ -42,9 +42,9 @@ export default function EditUserProfilePage() {
 
   return (
     <div className="container mx-auto py-10">
-      <UserProfileForm initialData={user} isEdit>
+      <AdminUserForm initialData={user} isEdit>
         <UserDocumentsPanel userId={id} />
-      </UserProfileForm>
+      </AdminUserForm>
     </div>
   );
 }
