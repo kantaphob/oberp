@@ -3,13 +3,22 @@
 import React, { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { User, UserProfile as UserProfileType, JobRole, Department, District, Subdistrict, Province } from "@/app/generated/prisma";
+import Link from "next/link";
+import {
+  User,
+  UserProfile as UserProfileType,
+  JobRole,
+  Department,
+  District,
+  Subdistrict,
+  Province,
+} from "@/app/generated/prisma";
 import { DataTable } from "@/components/ui/data-table";
 import { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Pencil, Trash2, Plus, Eye } from "lucide-react";
+import { Pencil, Trash2, Plus } from "lucide-react";
 
 // --- Type Definitions ---
 type UserWithProfile = User & {
@@ -31,7 +40,8 @@ const columns: ColumnDef<UserWithProfile>[] = [
   {
     accessorKey: "profile.firstName",
     header: "Name",
-    cell: ({ row }) => `${row.original.profile?.firstName || "-"} ${row.original.profile?.lastName || ""}`,
+    cell: ({ row }) =>
+      `${row.original.profile?.firstName || "-"} ${row.original.profile?.lastName || ""}`,
   },
   {
     accessorKey: "profile.telephoneNumber",
@@ -56,7 +66,10 @@ const columns: ColumnDef<UserWithProfile>[] = [
     header: "Status",
     cell: ({ row }) => {
       const status = row.original.status;
-      const color = status === "ACTIVE" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800";
+      const color =
+        status === "ACTIVE"
+          ? "bg-green-100 text-green-800"
+          : "bg-gray-100 text-gray-800";
       return <Badge className={color}>{status}</Badge>;
     },
   },
@@ -64,17 +77,19 @@ const columns: ColumnDef<UserWithProfile>[] = [
     id: "actions",
     cell: ({ row }) => {
       const user = row.original;
-      const router = useRouter();
-
-      const handleEdit = () => {
-        router.push(`/dashboard/admin/userProfile/edit/${user.id}`);
-      };
 
       const handleDelete = async () => {
-        if (!confirm(`คุณต้องการระงับบัญชีผู้ใช้ "${user.profile?.firstName || user.username}" ใช่หรือไม่?\n\nข้อมูลโปรไฟล์และประวัติการทำงานจะยังคงอยู่ แต่ผู้ใช้จะไม่สามารถเข้าสู่ระบบได้อีก`)) return;
+        if (
+          !confirm(
+            `คุณต้องการระงับบัญชีผู้ใช้ "${user.profile?.firstName || user.username}" ใช่หรือไม่?\n\nข้อมูลโปรไฟล์และประวัติการทำงานจะยังคงอยู่ แต่ผู้ใช้จะไม่สามารถเข้าสู่ระบบได้อีก`,
+          )
+        )
+          return;
 
         try {
-          const res = await fetch(`/api/users/${user.id}`, { method: "DELETE" });
+          const res = await fetch(`/api/users/${user.id}`, {
+            method: "DELETE",
+          });
           if (res.ok) {
             toast.success("ระงับบัญชีผู้ใช้เรียบร้อยแล้ว (TERMINATED)");
             window.location.reload();
@@ -89,9 +104,11 @@ const columns: ColumnDef<UserWithProfile>[] = [
 
       return (
         <div className="flex gap-2">
-          <Button variant="ghost" size="sm" onClick={handleEdit}>
-            <Pencil className="h-4 w-4" />
-          </Button>
+          <Link href={`/dashboard/admin/userProfile/edit/${user.id}`}>
+            <Button variant="ghost" size="sm">
+              <Pencil className="h-4 w-4" />
+            </Button>
+          </Link>
           <Button variant="ghost" size="sm" onClick={handleDelete}>
             <Trash2 className="h-4 w-4" />
           </Button>
@@ -139,9 +156,11 @@ export default function UserProfilePage() {
       <div className="flex justify-between items-center bg-white p-6 rounded-xl border shadow-sm">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">UserProfile</h1>
-          <p className="text-muted-foreground">บันทึกและจัดการข้อมูลทางด้านบุคคล</p>
+          <p className="text-muted-foreground">
+            บันทึกและจัดการข้อมูลทางด้านบุคคล
+          </p>
         </div>
-        <Button 
+        <Button
           onClick={() => router.push("/dashboard/admin/userProfile/create")}
           className="bg-orange-600 hover:bg-orange-700 shadow-md transition-all active:scale-95"
         >

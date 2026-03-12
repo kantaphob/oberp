@@ -154,10 +154,25 @@ model UserProfile {
 model userProfilesFile {
   id            String      @id @default(uuid())
   userProfileId String
-  file          String
-  documentType  String // เช่น "ID_CARD", "RESUME", "BOOK_BANK"
-  fileName      String? // ชื่อไฟล์ต้นฉบับ เช่น "บัตรปชช_สมชาย.pdf"
-  userProfile   UserProfile @relation(fields: [userProfileId], references: [id])
+  userProfile   UserProfile @relation(fields: [userProfileId], references: [id], onDelete: Cascade) // 🌟 1. เพิ่ม onDelete: Cascade
+
+  file     String // URL หรือ Path ที่เก็บไฟล์
+  fileName String? // ชื่อไฟล์ต้นฉบับ เช่น "บัตรปชช_สมชาย.pdf"
+
+  category     String // 🌟 2. หมวดหมู่หลัก (เช่น "PERSONAL", "EDUCATION", "PROFESSIONAL", "FINANCE")
+  documentType String // ประเภทเอกสารย่อย เช่น "ID_CARD", "RESUME", "LICENSE_ENG"
+
+  expireDate DateTime? // วันหมดอายุ (สำหรับ ใบ กว., ใบขับขี่, จป.)
+
+  // 🌟 3. ระบบสถานะการตรวจสอบเอกสาร (HR Verification)
+  isVerified Boolean @default(false) // ตรวจสอบความถูกต้องแล้วหรือยัง?
+  remark     String? // หมายเหตุจาก HR (เช่น "ภาพไม่ชัด รบกวนอัปโหลดใหม่")
+
+  // 🌟 4. ระบบ Audit Trail (ประทับเวลา)
+  createdAt DateTime @default(now()) // อัปโหลดเมื่อไหร่
+  updatedAt DateTime @updatedAt // อัปเดตไฟล์ล่าสุดเมื่อไหร่
+
+  @@map("core_user_profiles_files")
 }
 
 model PendingAction {

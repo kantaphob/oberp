@@ -5,6 +5,8 @@ import { UserProfileForm } from "../../_components/UserProfileForm";
 import { useParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 
+import { UserDocumentsPanel } from "../../_components/UserDocumentsPanel";
+
 export default function EditUserProfilePage() {
   const params = useParams();
   const id = params.id as string;
@@ -40,7 +42,9 @@ export default function EditUserProfilePage() {
 
   return (
     <div className="container mx-auto py-10">
-      <UserProfileForm initialData={user} isEdit />
+      <UserProfileForm initialData={user} isEdit>
+        <UserDocumentsPanel userId={id} />
+      </UserProfileForm>
     </div>
   );
 }
