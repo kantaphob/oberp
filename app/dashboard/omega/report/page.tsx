@@ -7,7 +7,7 @@ import {
   AlertTriangle, RefreshCcw, Eye
 } from "lucide-react";
 import { useSession } from "next-auth/react";
-import toast, { Toaster } from "react-hot-toast";
+import { showToast } from "../../../lib/toast";
 
 type PendingAction = {
   id: string;
@@ -49,7 +49,7 @@ export default function OmegaReportPage() {
       }
     } catch (error) {
       console.error("Fetch reports error", error);
-      toast.error("ไม่สามารถดึงข้อมูลรายงานได้");
+      showToast.error("ไม่สามารถดึงข้อมูลรายงานได้");
     } finally {
       setLoading(false);
     }
@@ -61,7 +61,7 @@ export default function OmegaReportPage() {
 
   const handleAction = async (id: string, actionName: "APPROVE" | "REJECT") => {
     if (session?.user?.level !== 0) {
-      toast.error("เฉพาะผู้ออกแบบระบบ (Level 0) เท่านั้นที่อนุมัติได้");
+      showToast.error("เฉพาะผู้ออกแบบระบบ (Level 0) เท่านั้นที่อนุมัติได้");
       return;
     }
 
@@ -76,15 +76,15 @@ export default function OmegaReportPage() {
       });
 
       if (res.ok) {
-        toast.success(actionName === "APPROVE" ? "อนุมัติสำเร็จ ข้อมูลถูกบันทึกแล้ว" : "ปฏิเสธรายการสำเร็จ");
+        showToast.success(actionName === "APPROVE" ? "อนุมัติสำเร็จ ข้อมูลถูกบันทึกแล้ว" : "ปฏิเสธรายการสำเร็จ");
         fetchReports();
       } else {
         const err = await res.json();
-        toast.error(err.error || "เกิดข้อผิดพลาดในการประมวลผล");
+        showToast.error(err.error || "เกิดข้อผิดพลาดในการประมวลผล");
       }
     } catch (error) {
       console.error(error);
-      toast.error("เกิดข้อผิดพลาดในการเชื่อมต่อ");
+      showToast.error("เกิดข้อผิดพลาดในการเชื่อมต่อ");
     } finally {
       setIsProcessing(null);
     }
@@ -99,7 +99,7 @@ export default function OmegaReportPage() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 max-w-6xl mx-auto">
-      <Toaster position="top-right" />
+      {/* Toaster removed as it is now global in layout.tsx */}
       
       {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">

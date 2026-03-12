@@ -17,6 +17,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         },
         profile: {
           include: {
+            role: true,
+            department: true,
             district: true,
             subdistrict: true,
             province: true,
@@ -230,7 +232,8 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
 
     // 🛡️ SUPERVISOR OVERRIDE & STAGING
     const body = await req.json().catch(() => ({}));
-    const { approverUsername } = body;
+    const { approverUsername, status: chosenStatus } = body;
+    const finalStatus = chosenStatus || "TERMINATED";
 
     if (currentUserLevel > 0) {
       if (!approverUsername) {
@@ -260,8 +263,8 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
       await prisma.pendingAction.create({
         data: {
           action: "DELETE_USER",
-          description: `ขอระงับการใช้งานและเปลี่ยนสถานะเป็น TERMINATED สำหรับพนักงาน @${targetUser.username} โดย ${session.user.username}`,
-          payload: { status: "TERMINATED" }, 
+          description: `ขอระงับการใช้งานและเปลี่ยนสถานะเป็น ${finalStatus} สำหรับพนักงาน @${targetUser.username} โดย ${session.user.username}`,
+          payload: { status: finalStatus }, 
           targetModel: "User",
           targetId: id,
           requesterId: session.user.id,
@@ -271,18 +274,18 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
       });
 
       return NextResponse.json({ 
-        message: "สั่งระงับการใช้งานสำเร็จ (รายการถูกส่งไปที่ Report เพื่อรอการยืนยันขั้นตอนสุดท้าย)" 
+        message: `ส่งคำขอระงับการใช้งาน (${finalStatus}) สำเร็จ (รายการถูกส่งไปที่ Report เพื่อรอการยืนยันขั้นตอนสุดท้าย)` 
       }, { status: 202 });
     }
 
     // --- Level 0 can soft-delete directly ---
     const softDeletedUser = await prisma.user.update({
       where: { id },
-      data: { status: "TERMINATED" }
+      data: { status: finalStatus }
     });
 
     return NextResponse.json({ 
-      message: "ระงับการใช้งานและเปลี่ยนสถานะเป็น TERMINATED เรียบร้อยแล้ว",
+      message: `ระงับการใช้งานและเปลี่ยนสถานะเป็น ${finalStatus} เรียบร้อยแล้ว`,
       user: softDeletedUser
     });
   } catch (error) {

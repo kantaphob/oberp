@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { FileText, Upload, Eye, Trash2, Calendar, CheckCircle2, AlertCircle, Loader2, X } from "lucide-react";
-import { toast } from "sonner";
+import { useToast } from "@/app/hooks/useToast";
+import { ConfirmActionModal } from "@/app/components/Dashboard/ConfirmActionModal";
 import { DOCUMENT_CATEGORIES } from "@/app/lib/documentTypes";
 import { format } from "date-fns";
 import { th } from "date-fns/locale";
@@ -33,6 +34,9 @@ export function UserDocumentsPanel({ userId }: UserDocumentsPanelProps) {
   const [expiryDates, setExpiryDates] = useState<Record<string, string>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeUpload, setActiveUpload] = useState<{ category: string, type: string } | null>(null);
+  const { notify } = useToast();
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchDocuments = async () => {
     try {
@@ -84,43 +88,47 @@ export function UserDocumentsPanel({ userId }: UserDocumentsPanelProps) {
       });
 
       if (res.ok) {
-        toast.success("อัปโหลดสำเร็จ");
+        notify.success("อัปโหลดสำเร็จ");
         fetchDocuments();
       } else {
         const data = await res.json();
         throw new Error(data.error || "อัปโหลดไม่สำเร็จ");
       }
     } catch (error: any) {
-      toast.error(error.message);
+      notify.onApiError(error, "อัปโหลดเอกสาร");
     } finally {
       setUploadingDocType(null);
     }
   };
 
-  const handleDelete = async (docId: string) => {
-    if (!confirm("คุณต้องการลบเอกสารนี้ใช่หรือไม่?")) return;
+  const executeDelete = async () => {
+    if (!deleteId) return;
 
     try {
-      const res = await fetch(`/api/users/${userId}/documents?docId=${docId}`, {
+      setDeleting(true);
+      const res = await fetch(`/api/users/${userId}/documents?docId=${deleteId}`, {
         method: "DELETE",
       });
 
       if (res.ok) {
-        toast.success("ลบเอกสารเรียบร้อยแล้ว");
+        notify.onDeleteSuccess("ไฟล์ถูกลบออกจากระบบแล้ว");
         fetchDocuments();
       } else {
         const data = await res.json();
         throw new Error(data.error || "ลบไม่สำเร็จ");
       }
     } catch (error: any) {
-      toast.error(error.message);
+      notify.onApiError(error, "ลบเอกสาร");
+    } finally {
+      setDeleting(false);
+      setDeleteId(null);
     }
   };
 
   const triggerUpload = (category: string, type: string) => {
     const docTypeInfo = DOCUMENT_CATEGORIES.find(c => c.id === category)?.types.find(t => t.code === type);
     if (docTypeInfo?.hasExpiry && !expiryDates[type]) {
-        toast.warning("กรุณาระบุวันหมดอายุก่อนอัปโหลด");
+        notify.warning("กรุณาระบุวันหมดอายุก่อนอัปโหลด");
         return;
     }
     setActiveUpload({ category, type });
@@ -247,7 +255,7 @@ export function UserDocumentsPanel({ userId }: UserDocumentsPanelProps) {
                                 variant="ghost" 
                                 size="sm" 
                                 className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                                onClick={() => handleDelete(doc.id)}
+                                onClick={() => setDeleteId(doc.id)}
                               >
                                 <Trash2 size={16} />
                               </Button>
@@ -265,6 +273,17 @@ export function UserDocumentsPanel({ userId }: UserDocumentsPanelProps) {
           </CardContent>
         </Card>
       ))}
+
+      <ConfirmActionModal 
+        isOpen={!!deleteId}
+        onClose={() => setDeleteId(null)}
+        onConfirm={executeDelete}
+        loading={deleting}
+        title="ยืนยันการลบเอกสาร"
+        description="คุณแน่ใจหรือไม่ที่จะลบเอกสารนี้? การดำเนินการนี้ไม่สามารถย้อนคืนได้"
+        confirmLabel="ลบไฟล์ทันที"
+        variant="danger"
+      />
     </div>
   );
 }

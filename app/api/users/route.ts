@@ -16,7 +16,15 @@ export async function GET(req: Request) {
             department: true,
           }
         },
-        profile: true,
+        profile: {
+          include: {
+            role: true,
+            department: true,
+            province: true,
+            district: true,
+            subdistrict: true,
+          }
+        },
       },
       orderBy: { createdAt: "desc" },
     });

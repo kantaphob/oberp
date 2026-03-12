@@ -12,18 +12,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { toast } from "sonner";
-import {
-  User,
-  JobRole,
-  Department,
-  Province,
-  District,
-  Subdistrict,
-} from "@/app/generated/prisma";
+import { useToast } from "@/app/hooks/useToast";
+import { User, JobRole, Department } from "@/app/generated/prisma";
 import { useSupervisor } from "@/app/hooks/useSupervisor";
 import { SupervisorModal } from "@/app/components/Supervisor/SupervisorModal";
-import { Loader2, Save, ChevronLeft } from "lucide-react";
+import { Loader2, Save, ChevronLeft, CheckCircle, AlertCircle, Search } from "lucide-react";
+import { useThailandAddress } from "@/app/hooks/useThailandAddress";
 
 interface UserProfileFormProps {
   initialData?: any;
@@ -44,14 +38,31 @@ export function UserProfileForm({
     closeModal,
     handleConfirm,
   } = useSupervisor();
+  const { notify } = useToast();
 
   const [loading, setLoading] = useState(false);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [roles, setRoles] = useState<JobRole[]>([]);
-  const [provinces, setProvinces] = useState<Province[]>([]);
-  const [districts, setDistricts] = useState<District[]>([]);
-  const [subdistricts, setSubdistricts] = useState<Subdistrict[]>([]);
   const [unassignedUsers, setUnassignedUsers] = useState<User[]>([]);
+
+  // ✅ Custom Hook จัดการเรื่อง Dropdown จังหวัด/อำเภอ/ตำบล/ไปรษณีย์ทั้งหมด
+  const {
+    provinces,
+    districts,
+    subdistricts,
+    address,
+    setAddressField,
+    lookupByZipcode,
+    setFullAddress,
+    zipcodeStatus,
+  } = useThailandAddress({
+    initialValue: {
+      provinceId: initialData?.profile?.provinceId?.toString() ?? "",
+      districtId: initialData?.profile?.districtId?.toString() ?? "",
+      subdistrictId: initialData?.profile?.subdistrictId?.toString() ?? "",
+      zipcode: initialData?.profile?.zipcode ?? "",
+    },
+  });
 
   // Safe date formatting function
   const formatDate = (dateString?: string | Date) => {
@@ -64,24 +75,19 @@ export function UserProfileForm({
   };
 
   const [formData, setFormData] = useState({
-    userId: initialData?.id || "", // For linking to existing user
+    userId: initialData?.id || "",
     username: initialData?.username || "",
     email: initialData?.email || "",
     status: initialData?.status || "ACTIVE",
     roleId: initialData?.roleId || "",
-
-    // Profile fields
+    // Profile fields (ที่อยู่จะอ่านจาก `address` ของ Hook แทน)
     firstName: initialData?.profile?.firstName || "",
     lastName: initialData?.profile?.lastName || "",
     taxId: initialData?.profile?.taxId || "",
     telephoneNumber: initialData?.profile?.telephoneNumber || "",
     lineId: initialData?.profile?.lineId || "",
     addressDetail: initialData?.profile?.addressDetail || "",
-    provinceId: initialData?.profile?.provinceId || "",
-    districtId: initialData?.profile?.districtId || "",
-    subdistrictId: initialData?.profile?.subdistrictId || "",
-    zipcode: initialData?.profile?.zipcode || "",
-    departmentId: initialData?.profile?.departmentId || "",
+    departmentId: initialData?.profile?.departmentId || initialData?.role?.departmentId || "",
     gender: initialData?.profile?.gender || "",
     nationality: initialData?.profile?.nationality || "",
     birthDate: formatDate(initialData?.profile?.birthDate),
@@ -98,41 +104,24 @@ export function UserProfileForm({
 
   const fetchBaseData = async () => {
     try {
-      const [deptsRes, rolesRes, provRes, usersRes] = await Promise.all([
+      // จังหวัด/อำเภอ/ตำบล ถูกจัดการโดย useThailandAddress Hook แล้ว
+      // เหลือแค่ departments, roles, และ unassigned users
+      const [deptsRes, rolesRes, usersRes] = await Promise.all([
         fetch("/api/departments"),
         fetch("/api/jobroles"),
-        fetch("/api/postcode/provinces"),
         !isEdit ? fetch("/api/users?noProfile=true") : Promise.resolve(null),
       ]);
 
       if (deptsRes.ok) setDepartments(await deptsRes.json());
       if (rolesRes.ok) setRoles(await rolesRes.json());
-      if (provRes.ok) setProvinces(await provRes.json());
       if (usersRes && usersRes.ok) setUnassignedUsers(await usersRes.json());
     } catch (error) {
       console.error("Failed to fetch base data:", error);
     }
   };
 
-  useEffect(() => {
-    if (formData.provinceId) {
-      fetch(`/api/postcode/districts?provinceId=${formData.provinceId}`)
-        .then((res) => res.json())
-        .then((data) => setDistricts(data));
-    } else {
-      setDistricts([]);
-    }
-  }, [formData.provinceId]);
-
-  useEffect(() => {
-    if (formData.districtId) {
-      fetch(`/api/postcode/subdistricts?districtId=${formData.districtId}`)
-        .then((res) => res.json())
-        .then((data) => setSubdistricts(data));
-    } else {
-      setSubdistricts([]);
-    }
-  }, [formData.districtId]);
+  // ✅ useEffect สำหรับ Cascade + Zipcode Lookup ถูกย้ายไปอยู่ใน useThailandAddress Hook แล้ว
+  // ไม่ต้องเขียนซ้ำที่นี่อีก!
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
@@ -140,23 +129,39 @@ export function UserProfileForm({
     const { name, value } = e.target;
 
     if (name === "userId" && !isEdit) {
-      const selectedUser = unassignedUsers.find((u) => u.id === value);
+      const selectedUser = unassignedUsers.find((u) => u.id === value) as any;
       setFormData((prev) => ({
         ...prev,
         userId: value,
         username: selectedUser?.username || "",
         email: selectedUser?.email || "",
+        roleId: selectedUser?.roleId || prev.roleId,
+        departmentId: selectedUser?.role?.departmentId || prev.departmentId,
+      }));
+    } else if (name === "roleId") {
+      const selectedRole = roles.find((r) => r.id === value);
+      setFormData((prev) => ({
+        ...prev,
+        roleId: value,
+        departmentId: selectedRole?.departmentId || prev.departmentId,
       }));
     } else {
+      // ✅ field ที่อยู่ (province/district/subdistrict/zipcode) ส่งไปให้ setAddressField จัดการ
       setFormData((prev) => ({ ...prev, [name]: value }));
     }
+  };
+
+  // Handler เฉพาะสำหรับ field ที่อยู่ ใช้ใน JSX ของ Address Section
+  const handleAddressChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setAddressField(name as any, value);
   };
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (isEdit && !isDirty) {
-      toast.info("ไม่มีการเปลี่ยนแปลงข้อมูลที่ต้องบันทึก");
+      notify.info("ไม่มีการเปลี่ยนแปลงข้อมูลที่ต้องบันทึก");
       return;
     }
 
@@ -179,21 +184,21 @@ export function UserProfileForm({
   const saveData = async (approverUsername?: string) => {
     setLoading(true);
     try {
-      // Zipcode validation using postcode API
-      if (formData.zipcode) {
+      // Zipcode validation — zipcode อยู่ใน `address` ของ Hook
+      if (address.zipcode) {
         try {
           const postcodeRes = await fetch(
-            `/api/postcode/validate?zipcode=${formData.zipcode}`,
+            `/api/postcode/validate?zipcode=${address.zipcode}`,
           );
           const postcodeData = await postcodeRes.json();
 
           if (!postcodeRes.ok || !postcodeData.valid) {
-            toast.error(postcodeData.message || "รหัสไปรษณีย์ไม่ถูกต้อง");
+            notify.error(postcodeData.message || "รหัสไปรษณีย์ไม่ถูกต้อง");
             setLoading(false);
             return;
           }
         } catch {
-          toast.error("ไม่สามารถตรวจสอบรหัสไปรษณีย์ได้ กรุณาลองใหม่");
+          notify.error("ไม่สามารถตรวจสอบรหัสไปรษณีย์ได้ กรุณาลองใหม่");
           setLoading(false);
           return;
         }
@@ -206,8 +211,13 @@ export function UserProfileForm({
       const url = targetUserId ? `/api/users/${targetUserId}` : "/api/users";
       const method = targetUserId ? "PUT" : "POST";
 
+      // รวม formData กับ address จาก Hook เป็น payload เดียว
       const payload = {
         ...formData,
+        provinceId: address.provinceId,
+        districtId: address.districtId,
+        subdistrictId: address.subdistrictId,
+        zipcode: address.zipcode,
         approverUsername,
       };
 
@@ -220,17 +230,14 @@ export function UserProfileForm({
       const data = await res.json();
 
       if (res.ok) {
-        toast.success(
-          data.message || (isEdit ? "อัปเดตข้อมูลสำเร็จ" : "สร้างข้อมูลสำเร็จ"),
-        );
+        notify.onSaveSuccess(data.message || (isEdit ? "อัปเดตข้อมูลสำเร็จ" : "สร้างข้อมูลสำเร็จ"));
         router.push("/dashboard/admin/userProfile");
         router.refresh();
       } else {
         throw new Error(data.error || "เกิดข้อผิดพลาดในการบันทึกข้อมูล");
       }
     } catch (error: any) {
-      toast.error(error.message);
-      throw error;
+      notify.onApiError(error, isEdit ? "แก้ไขข้อมูล" : "สร้างพนักงาน");
     } finally {
       setLoading(false);
     }
@@ -298,27 +305,9 @@ export function UserProfileForm({
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="roleId">ตำแหน่ง (Role)</Label>
-                <select
-                  id="roleId"
-                  name="roleId"
-                  className="w-full p-2 border rounded-md"
-                  value={formData.roleId}
-                  onChange={handleChange}
-                  required
-                >
-                  <option value="">เลือกตำแหน่ง</option>
-                  {roles.map((role) => (
-                    <option key={role.id} value={role.id}>
-                      {role.name} (L{role.level})
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="status">สถานะ</Label>
+                <Label htmlFor="status">สถานะบัญชี</Label>
                 <select
                   id="status"
                   name="status"
@@ -331,38 +320,21 @@ export function UserProfileForm({
                   <option value="PENDING">PENDING</option>
                 </select>
               </div>
+
+              {isEdit && formData.email && (
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    name="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                  />
+                </div>
+              )}
             </div>
-            {isEdit && formData.email && (
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  name="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                />
-              </div>
-            )}
-            {/* Department moved here */}
-            <div className="space-y-2">
-              <Label htmlFor="departmentId">แผนก (Department)</Label>
-              <select
-                id="departmentId"
-                name="departmentId"
-                className="w-full p-2 border rounded-md"
-                value={formData.departmentId}
-                onChange={handleChange}
-                required
-              >
-                <option value="">เลือกแผนก</option>
-                {departments.map((dept) => (
-                  <option key={dept.id} value={dept.id}>
-                    {dept.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+
           </CardContent>
         </Card>
 
@@ -468,6 +440,7 @@ export function UserProfileForm({
                   required
                 />
               </div>
+              {/* ✅ ใช้ address จาก useThailandAddress Hook */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="provinceId">จังหวัด</Label>
@@ -475,8 +448,8 @@ export function UserProfileForm({
                     id="provinceId"
                     name="provinceId"
                     className="w-full p-2 border rounded-md"
-                    value={formData.provinceId}
-                    onChange={handleChange}
+                    value={address.provinceId}
+                    onChange={handleAddressChange}
                     required
                   >
                     <option value="">เลือกจังหวัด</option>
@@ -493,10 +466,10 @@ export function UserProfileForm({
                     id="districtId"
                     name="districtId"
                     className="w-full p-2 border rounded-md"
-                    value={formData.districtId}
-                    onChange={handleChange}
+                    value={address.districtId}
+                    onChange={handleAddressChange}
                     required
-                    disabled={!formData.provinceId}
+                    disabled={!address.provinceId}
                   >
                     <option value="">เลือกอำเภอ</option>
                     {districts.map((d) => (
@@ -514,10 +487,10 @@ export function UserProfileForm({
                     id="subdistrictId"
                     name="subdistrictId"
                     className="w-full p-2 border rounded-md"
-                    value={formData.subdistrictId}
-                    onChange={handleChange}
+                    value={address.subdistrictId}
+                    onChange={handleAddressChange}
                     required
-                    disabled={!formData.districtId}
+                    disabled={!address.districtId}
                   >
                     <option value="">เลือกตำบล</option>
                     {subdistricts.map((s) => (
@@ -529,17 +502,88 @@ export function UserProfileForm({
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="zipcode">รหัสไปรษณีย์</Label>
-                  <Input
-                    id="zipcode"
-                    name="zipcode"
-                    value={formData.zipcode}
-                    onChange={handleChange}
-                  />
+                  <div className="relative">
+                    <Input
+                      id="zipcode"
+                      name="zipcode"
+                      maxLength={5}
+                      placeholder="เช่น 10110"
+                      value={address.zipcode}
+                      onChange={(e) => {
+                        const zip = e.target.value.replace(/\D/g, "");
+                        setAddressField("zipcode", zip);
+                        lookupByZipcode(zip); // 🔍 Reverse Lookup ทันทีที่ครบ 5 หลัก
+                      }}
+                      className={`pr-8 ${
+                        zipcodeStatus === "found_single" ? "border-green-500 focus:ring-green-500" :
+                        zipcodeStatus === "not_found" || zipcodeStatus === "error" ? "border-red-400" :
+                        ""
+                      }`}
+                    />
+                    {/* Status Icon */}
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                      {zipcodeStatus === "loading" && <Loader2 className="w-4 h-4 animate-spin text-gray-400" />}
+                      {(zipcodeStatus === "found_single" || zipcodeStatus === "found_multi") && <CheckCircle className="w-4 h-4 text-green-500" />}
+                      {(zipcodeStatus === "not_found" || zipcodeStatus === "error") && <AlertCircle className="w-4 h-4 text-red-400" />}
+                    </div>
+                  </div>
+                  {/* Feedback message */}
+                  {zipcodeStatus === "found_single" && (
+                    <p className="text-[11px] text-green-600 font-medium flex items-center gap-1">
+                      <CheckCircle className="w-3 h-3" /> กรอกที่อยู่อัตโนมัติเรียบร้อย
+                    </p>
+                  )}
+                  {zipcodeStatus === "found_multi" && (
+                    <p className="text-[11px] text-amber-600 font-medium flex items-center gap-1">
+                      <Search className="w-3 h-3" /> พบหลายตำบล กรุณาเลือกตำบลด้านบน
+                    </p>
+                  )}
+                  {zipcodeStatus === "not_found" && (
+                    <p className="text-[11px] text-red-500 font-medium flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3" /> ไม่พบรหัสไปรษณีย์นี้
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
 
             <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="roleId" className="text-orange-600 font-bold">ตำแหน่ง (Role)</Label>
+                <select
+                  id="roleId"
+                  name="roleId"
+                  className="w-full p-2 border border-orange-200 rounded-md focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
+                  value={formData.roleId}
+                  onChange={handleChange}
+                  required
+                >
+                  <option value="">เลือกตำแหน่ง</option>
+                  {roles.map((role) => (
+                    <option key={role.id} value={role.id}>
+                      {role.name} (L{role.level})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="departmentId" className="text-orange-600 font-bold">แผนก (Department)</Label>
+                <select
+                  id="departmentId"
+                  name="departmentId"
+                  className="w-full p-2 border border-orange-200 rounded-md focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
+                  value={formData.departmentId}
+                  onChange={handleChange}
+                  required
+                >
+                  <option value="">เลือกแผนก</option>
+                  {departments.map((dept) => (
+                    <option key={dept.id} value={dept.id}>
+                      {dept.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="startDate">วันที่เริ่มงาน</Label>
                 <Input

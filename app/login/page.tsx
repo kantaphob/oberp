@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { login, isAuthenticated } from "../services/auth";
-import toast from "react-hot-toast";
+import { showToast } from "../lib/toast";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -57,19 +57,19 @@ export default function LoginPage() {
     // Validate inputs
     if (!formData.identifier.trim()) {
       setErrorMessage("กรุณากรอก Username หรืออีเมล");
-      toast.error("กรุณากรอก Username หรืออีเมล");
+      showToast.error("กรุณากรอก Username หรืออีเมล");
       return;
     }
 
     if (!formData.password.trim()) {
       setErrorMessage("กรุณากรอกรหัสผ่าน");
-      toast.error("กรุณากรอกรหัสผ่าน");
+      showToast.error("กรุณากรอกรหัสผ่าน");
       return;
     }
 
     if (formData.password.length < 4) {
       setErrorMessage("รหัสผ่านต้องมีอย่างน้อย 4 ตัวอักษร");
-      toast.error("รหัสผ่านต้องมีอย่างน้อย 4 ตัวอักษร");
+      showToast.error("รหัสผ่านต้องมีอย่างน้อย 4 ตัวอักษร");
       return;
     }
 
@@ -100,7 +100,7 @@ export default function LoginPage() {
 
       if (result.success) {
         setStatus("success");
-        toast.success("เข้าสู่ระบบสำเร็จ!");
+        showToast.success("เข้าสู่ระบบสำเร็จ!");
 
         // Redirect ไปหน้า Dashboard
         setTimeout(() => {
@@ -117,7 +117,7 @@ export default function LoginPage() {
           ? error.message
           : "เกิดข้อผิดพลาดในการเข้าสู่ระบบ";
       setErrorMessage(errorMsg);
-      toast.error(errorMsg);
+      showToast.error(errorMsg);
 
       // Reset status หลัง 2 วินาที
       setTimeout(() => {
