@@ -82,17 +82,28 @@ model Permission {
 }
 
 model User {
-  id               String            @id @default(uuid())
-  username         String            @unique
-  passwordHash     String
-  email            String?           @unique
-  status           UserStatus        @default(PENDING)
-  roleId           String
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
-  approvedById     String?
-  createdById      String?
-  profile          UserProfile?
+  id              String       @id @default(uuid())
+  username        String       @unique
+  passwordHash    String
+  email           String?      @unique
+  status          UserStatus   @default(PENDING)
+  roleId          String
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  approvedById    String?
+  createdById     String?
+  profile         UserProfile?
+  
+  hasProfile      Boolean      @default(false) // เมื่อกรอก profile เสร็จจะเป็น true
+  hasProfileFiles Boolean      @default(false) // เมื่อแนบไฟล์เสร็จจะเป็น true
+
+  // 1. ความสัมพันธ์ในฐานะ "ลูกทีม" (ช่าง 1 คน สังกัดได้ 1 ทีมหลัก)
+  teamId String?
+  team   ConstructionTeam? @relation("TeamMembers", fields: [teamId], references: [id])
+
+  // 2. ความสัมพันธ์ในฐานะ "หัวหน้าทีม" (โฟร์แมน 1 คน อาจจะคุมได้หลายทีม)
+  ledTeams ConstructionTeam[] @relation("TeamLeader")
+
   approvedBy       User?             @relation("UserApprover", fields: [approvedById], references: [id])
   usersApproved    User[]            @relation("UserApprover")
   createdBy        User?             @relation("UserCreator", fields: [createdById], references: [id])
@@ -114,16 +125,17 @@ model User {
 }
 
 model UserProfile {
-  id              String  @id @default(uuid())
-  userId          String  @unique
-  user            User    @relation(fields: [userId], references: [id], onDelete: Restrict)
-  taxId           String  @unique @db.VarChar(13)
+  id              String    @id @default(uuid())
+  userId          String    @unique
+  user            User      @relation(fields: [userId], references: [id], onDelete: Restrict)
+  taxId           String    @unique @db.VarChar(13)
   firstName       String
   lastName        String
-  telephoneNumber String  @unique @db.VarChar(10)
+  telephoneNumber String    @unique @db.VarChar(10)
   lineId          String?
   gender          String?
   nationality     String?
+  birthDate       DateTime?
 
   addressDetail String
   subdistrictId Int?
@@ -141,12 +153,12 @@ model UserProfile {
 
   image String?
 
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  birthDate DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  startDate DateTime           @default(now())
-  file      userProfilesFile[]
+  startDate DateTime @default(now())
+
+  file userProfilesFile[]
 
   @@map("core_user_profiles")
 }
@@ -156,23 +168,40 @@ model userProfilesFile {
   userProfileId String
   userProfile   UserProfile @relation(fields: [userProfileId], references: [id], onDelete: Cascade) // 🌟 1. เพิ่ม onDelete: Cascade
 
-  file     String // URL หรือ Path ที่เก็บไฟล์
-  fileName String? // ชื่อไฟล์ต้นฉบับ เช่น "บัตรปชช_สมชาย.pdf"
+  file     String
+  fileName String?
 
-  category     String // 🌟 2. หมวดหมู่หลัก (เช่น "PERSONAL", "EDUCATION", "PROFESSIONAL", "FINANCE")
-  documentType String // ประเภทเอกสารย่อย เช่น "ID_CARD", "RESUME", "LICENSE_ENG"
+  category     String
+  documentType String
 
-  expireDate DateTime? // วันหมดอายุ (สำหรับ ใบ กว., ใบขับขี่, จป.)
+  expireDate DateTime?
 
-  // 🌟 3. ระบบสถานะการตรวจสอบเอกสาร (HR Verification)
-  isVerified Boolean @default(false) // ตรวจสอบความถูกต้องแล้วหรือยัง?
-  remark     String? // หมายเหตุจาก HR (เช่น "ภาพไม่ชัด รบกวนอัปโหลดใหม่")
+  isVerified Boolean @default(false)
+  remark     String?
 
-  // 🌟 4. ระบบ Audit Trail (ประทับเวลา)
-  createdAt DateTime @default(now()) // อัปโหลดเมื่อไหร่
-  updatedAt DateTime @updatedAt // อัปเดตไฟล์ล่าสุดเมื่อไหร่
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("core_user_profiles_files")
+}
+
+model ConstructionTeam {
+  id          String     @id @default(uuid())
+  name        String // ชื่อทีม เช่น "ทีมโครงสร้าง A"
+  description String? // รายละเอียดเพิ่มเติม (ถ้ามี)
+  status      TeamStatus @default(ACTIVE)
+
+  // 👑 หัวหน้าทีม (Foreman / Project Engineer)
+  leaderId String?
+  leader   User?   @relation("TeamLeader", fields: [leaderId], references: [id])
+
+  // 👷‍♂️ ลูกทีมทั้งหมด (Workers / Members)
+  members User[] @relation("TeamMembers")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("core_construction_teams") // ตั้งชื่อตารางใน Database ให้เป็นระเบียบ
 }
 
 model PendingAction {
@@ -460,7 +489,7 @@ enum UserStatus {
   ACTIVE
   INACTIVE
   SUSPENDED
-  ON_LEAVE 
+  ON_LEAVE
   RESIGNED
   TERMINATED
   LOCKED
@@ -543,6 +572,11 @@ enum CostType {
   EQUIPMENT
   SUBCONTRACTOR
   SERVICE
+}
+
+enum TeamStatus {
+  ACTIVE // ทีมกำลังทำงานอยู่
+  INACTIVE // ยุบทีมชั่วคราว หรือจบโปรเจกต์แล้ว
 }
 
 model ActivityLog {

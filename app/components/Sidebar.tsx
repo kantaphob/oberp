@@ -280,6 +280,7 @@ export const MENU_DATA: MenuGroup[] = [
         icon: "Users",
         subMenus: [
           { name: "Employee & Sub", href: "/dashboard/hrm/employee" },
+          { name:"Construction Team", href: "/dashboard/hrm/constructionTeam"},
           { name: "Time Attendance", href: "/" },
           { name: "Payroll & Wages", href: "/" },
         ],
