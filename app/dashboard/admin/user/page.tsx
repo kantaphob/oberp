@@ -13,6 +13,7 @@ import {
   Mail,
   CheckCircle,
   AlertCircle,
+  ShieldAlert,
   EyeOff,
   Eye,
   Building2,
@@ -20,7 +21,12 @@ import {
   ChevronRight,
   Fingerprint,
   Wand2,
+  RefreshCw,
+  Check,
 } from "lucide-react";
+import { useSession } from "next-auth/react";
+import { SupervisorModal } from "@/app/components/Supervisor/SupervisorModal";
+import { useSupervisor } from "@/app/hooks/useSupervisor";
 
 type UserStatus =
   | "ACTIVE"
@@ -62,6 +68,9 @@ type UserData = {
 };
 
 export default function UserManagementPage() {
+  const { data: session } = useSession();
+  const currentUser = session?.user;
+
   const [users, setUsers] = useState<UserData[]>([]);
   const [roles, setRoles] = useState<JobRole[]>([]);
   const [loading, setLoading] = useState(true);
@@ -93,6 +102,10 @@ export default function UserManagementPage() {
 
   const [saving, setSaving] = useState(false);
   const [isGeneratingUsername, setIsGeneratingUsername] = useState(false);
+
+  // 🛡️ Supervisor Hook (Reusable)
+  const supervisor = useSupervisor();
+  const [pendingAction, setPendingAction] = useState<{ type: "DELETE" | "EDIT" | "ADD"; id?: string; name?: string; payload?: any } | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -226,6 +239,8 @@ export default function UserManagementPage() {
 
     if (password) payload.password = password;
 
+    const body = { ...payload };
+
     try {
       setSaving(true);
       let res;
@@ -233,7 +248,7 @@ export default function UserManagementPage() {
         res = await fetch(`/api/users/${editingId}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
+          body: JSON.stringify(body),
         });
       } else {
         if (!password) {
@@ -244,16 +259,40 @@ export default function UserManagementPage() {
         res = await fetch("/api/users", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
+          body: JSON.stringify(body),
         });
       }
 
       const data = await res.json();
+      
+      // 🛡️ Handle Supervisor Required (Level 1+)
+      if (res.status === 403 && data.requireSupervisor) {
+        setPendingAction({ type: editingId ? "EDIT" : "ADD", payload });
+        supervisor.openModal(async (supervisorUsername) => {
+            const finalPayload = { ...payload, approverUsername: supervisorUsername };
+            const finalRes = await fetch(editingId ? `/api/users/${editingId}` : "/api/users", {
+                method: editingId ? "PUT" : "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(finalPayload),
+            });
+            const finalData = await finalRes.json();
+            if (!finalRes.ok) throw new Error(finalData.error);
+            
+            if (finalData.message) alert(finalData.message);
+            closeModal();
+            setUsers(await (await fetch("/api/users")).json());
+        });
+        setSaving(false);
+        return;
+      }
+
       if (!res.ok) {
         alert(data.error || "Failed to save user");
         setSaving(false);
         return;
       }
+
+      if (data.message) alert(data.message);
 
       closeModal();
 
@@ -273,13 +312,34 @@ export default function UserManagementPage() {
 
   const handleDelete = async (id: string, name: string) => {
     if (!confirm(`Are you sure you want to delete user: ${name}?`)) return;
+    
     try {
-      await fetch(`/api/users/${id}`, { method: "DELETE" });
-      const res = await fetch("/api/users");
-      if (res.ok) {
-        const data = await res.json();
-        setUsers(data);
+      const res = await fetch(`/api/users/${id}`, { 
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({})
+      });
+      
+      const data = await res.json().catch(() => ({}));
+
+      // 🛡️ Handle Supervisor Required
+      if (res.status === 403 && data.requireSupervisor) {
+        supervisor.openModal(async (supervisorUsername) => {
+            const finalRes = await fetch(`/api/users/${id}`, { 
+                method: "DELETE",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ approverUsername: supervisorUsername })
+            });
+            const finalData = await finalRes.json();
+            if (!finalRes.ok) throw new Error(finalData.error);
+            if (finalData.message) alert(finalData.message);
+            setUsers(await (await fetch("/api/users")).json());
+        });
+        return;
       }
+
+      if (data.message) alert(data.message);
+      setUsers(await (await fetch("/api/users")).json());
     } catch (error) {
       console.error("Delete failed", error);
       alert("Failed to delete user");
@@ -472,20 +532,39 @@ export default function UserManagementPage() {
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button
-                            onClick={() => openEditModal(user)}
-                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-                            title="Edit"
-                          >
-                            <Edit2 size={16} />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(user.id, user.username)}
-                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
-                            title="Delete"
-                          >
-                            <Trash2 size={16} />
-                          </button>
+                          {/* 🛡️ Hierarchical UI Control */}
+                          {(() => {
+                             const targetLevel = user.role?.level ?? 999;
+                             const currentLevel = currentUser?.level ?? 999;
+                             
+                             // กฎ: Level 0 ห้ามแก้ไข/ลบทิ้งเด็ดขาด (แตะต้องไม่ได้)
+                             if (targetLevel === 0) return null;
+                             
+                             // กฎ: ห้ามแก้คนที่ระดับสูงกว่าตัวเอง (ตัวเลขน้อยกว่า) 
+                             if (currentLevel > targetLevel) return null;
+                             
+                             // กฎ: ห้ามแก้คนระดับเดียวกัน (ยกเว้นตัวเอง)
+                             if (currentLevel === targetLevel && currentUser?.id !== user.id) return null;
+
+                             return (
+                               <>
+                                 <button
+                                   onClick={() => openEditModal(user)}
+                                   className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                                   title="Edit"
+                                 >
+                                   <Edit2 size={16} />
+                                 </button>
+                                 <button
+                                   onClick={() => handleDelete(user.id, user.username)}
+                                   className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                                   title="Delete"
+                                 >
+                                   <Trash2 size={16} />
+                                 </button>
+                               </>
+                             );
+                          })()}
                         </div>
                       </td>
                     </tr>
@@ -821,6 +900,14 @@ export default function UserManagementPage() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* 🛡️ REUSABLE SUPERVISOR MODAL */}
+      <SupervisorModal 
+        isOpen={supervisor.isOpen}
+        onClose={supervisor.closeModal}
+        loading={supervisor.loading}
+        onConfirm={supervisor.handleConfirm}
+      />
     </div>
   );
 }

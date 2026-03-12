@@ -2,7 +2,19 @@ import 'dotenv/config';
 import { prisma } from './app/lib/prisma';
 
 async function main() {
-  console.log('🌱 เริ่มต้นการ Seed ข้อมูล...')
+  console.log('🧹 กำลังล้างข้อมูลเก่า (Users, Roles, Permissions)...')
+  
+  // ล้างข้อมูลตามลำดับความสัมพันธ์ (จากปลายทางมาต้นทาง)
+  await prisma.activityLog.deleteMany()
+  await prisma.userProfile.deleteMany()
+  await prisma.user.deleteMany()
+  await prisma.permission.deleteMany()
+  
+  // ลบ Hierarchy ของ Roles (ต้องลบความสัมพันธ์ parentRoleId ก่อนในบางกรณี หรือลบทั้งหมด)
+  await prisma.jobRole.updateMany({ data: { parentRoleId: null } })
+  await prisma.jobRole.deleteMany()
+
+  console.log('🌱 เริ่มต้นการ Seed ข้อมูลโครงสร้างองค์กรใหม่ (14 ระดับ)...')
 
   // ==========================================================
   // 1. สร้างข้อมูลแผนก (Departments)
@@ -32,114 +44,118 @@ async function main() {
   console.log('✅ Seed: Job Lines สำเร็จ')
 
   // ==========================================================
-  // 3. สร้างข้อมูลตำแหน่ง (Job Roles) **เรียงลำดับจากบนลงล่าง Top-Down**
+  // 3. สร้างข้อมูลตำแหน่ง (Job Roles) **ตามระดับที่ลูกค้าระบุ (Level 0 - 13)**
   // ==========================================================
-  
-  // Level 0: MD
+
+  // Level 0: Founder / Co-Founder
+  const roleFND = await prisma.jobRole.upsert({
+    where: { prefix: 'FND' },
+    update: { level: 0, description: 'God Mode (แตะต้องไม่ได้) - มีสิทธิ์สูงสุด ไม่มีใครลบหรือแก้ไขบัญชีนี้ได้ ดูได้ทุกอย่าง อนุมัตได้ทุกอย่าง' },
+    create: { name: 'Founder / Co-Founder', prefix: 'FND', level: 0, departmentId: deptEXC.id, jobLineId: jlMGT.id, description: 'God Mode (แตะต้องไม่ได้) - มีสิทธิ์สูงสุด ไม่มีใครลบหรือแก้ไขบัญชีนี้ได้ ดูได้ทุกอย่าง อนุมัตได้ทุกอย่าง' }
+  })
+
+  // Level 1: MD / Board
   const roleMD = await prisma.jobRole.upsert({
     where: { prefix: 'MD' },
-    update: {},
-    create: { name: 'Managing Director', prefix: 'MD', level: 0, departmentId: deptEXC.id, jobLineId: jlMGT.id }
+    update: { level: 1, description: 'Top Executive - บริหารภาพรวมบริษัท สร้าง/แก้ไข CEO ได้ แต่ มองไม่เห็นปุ่มแก้ไขของ Level 0' },
+    create: { name: 'Managing Director / Board', prefix: 'MD', level: 1, departmentId: deptEXC.id, jobLineId: jlMGT.id, parentRoleId: roleFND.id, description: 'Top Executive - บริหารภาพรวมบริษัท สร้าง/แก้ไข CEO ได้ แต่ มองไม่เห็นปุ่มแก้ไขของ Level 0' }
   })
 
-  // Level 1: GM
-  const roleGM = await prisma.jobRole.upsert({
-    where: { prefix: 'GM' },
-    update: {},
-    create: { name: 'General Manager', prefix: 'GM', level: 1, departmentId: deptEXC.id, jobLineId: jlMGT.id, parentRoleId: roleMD.id }
+  // Level 2: CEO / President
+  const roleCEO = await prisma.jobRole.upsert({
+    where: { prefix: 'CEO' },
+    update: { level: 2, description: 'Chief Executive - ผู้นำสูงสุดในการปฏิบัติการ (Operations) ดูงบได้ทุกโปรเจกต์ แต่ไม่มีสิทธิ์ยุ่งกับข้อมูลของบอร์ดหรือผู้ก่อตั้ง' },
+    create: { name: 'CEO / President', prefix: 'CEO', level: 2, departmentId: deptEXC.id, jobLineId: jlMGT.id, parentRoleId: roleMD.id, description: 'Chief Executive - ผู้นำสูงสุดในการปฏิบัติการ (Operations) ดูงบได้ทุกโปรเจกต์ แต่ไม่มีสิทธิ์ยุ่งกับข้อมูลของบอร์ดหรือผู้ก่อตั้ง' }
   })
 
-  // Level 2: PD (Project Director)
-  const rolePD = await prisma.jobRole.upsert({
-    where: { prefix: 'PD' },
-    update: {},
-    create: { name: 'Project Director', prefix: 'PD', level: 2, departmentId: deptOPS.id, jobLineId: jlPMT.id, parentRoleId: roleGM.id }
+  // Level 3: C-Level
+  const roleCFO = await prisma.jobRole.upsert({
+    where: { prefix: 'CFO' },
+    update: { level: 3, description: 'Domain Executive - CFO คุมการเงินทั้งหมด สร้างตำแหน่ง VP/Director ลงไปได้' },
+    create: { name: 'Chief Financial Officer (CFO)', prefix: 'CFO', level: 3, departmentId: deptFIN.id, jobLineId: jlFIN.id, parentRoleId: roleCEO.id, description: 'Domain Executive - CFO คุมการเงินทั้งหมด สร้างตำแหน่ง VP/Director ลงไปได้' }
+  })
+  const roleCTO = await prisma.jobRole.upsert({
+    where: { prefix: 'CTO' },
+    update: { level: 3, description: 'Domain Executive - CTO คุมเทคโนโลยีและวิศวกรรม สร้างตำแหน่ง VP/Director ลงไปได้' },
+    create: { name: 'Chief Technology Officer (CTO)', prefix: 'CTO', level: 3, departmentId: deptENG.id, jobLineId: jlENG.id, parentRoleId: roleCEO.id, description: 'Domain Executive - CTO คุมเทคโนโลยีและวิศวกรรม สร้างตำแหน่ง VP/Director ลงไปได้' }
   })
 
-  // Level 3: Managers ของแต่ละแผนก
+  // Level 4: Director / VP
+  const roleDIR = await prisma.jobRole.upsert({
+    where: { prefix: 'DIR' },
+    update: { level: 4, description: 'Department Head - ผู้อำนวยการฝ่าย (เช่น ผอ.ฝ่ายวิศวกรรม, ผอ.ฝ่ายจัดซื้อ)' },
+    create: { name: 'Director / VP', prefix: 'DIR', level: 4, departmentId: deptOPS.id, jobLineId: jlPMT.id, parentRoleId: roleCEO.id, description: 'Department Head - ผู้อำนวยการฝ่าย (เช่น ผอ.ฝ่ายวิศวกรรม, ผอ.ฝ่ายจัดซื้อ)' }
+  })
+
+  // Level 5: Manager / Project Director
+  const roleMGR = await prisma.jobRole.upsert({
+    where: { prefix: 'MGR' },
+    update: { level: 5, description: 'Management - ผู้จัดการแผนก หรือผู้อำนวยการโครงการ (คุม PM อีกที)' },
+    create: { name: 'Manager / Project Director', prefix: 'MGR', level: 5, departmentId: deptOPS.id, jobLineId: jlPMT.id, parentRoleId: roleDIR.id, description: 'Management - ผู้จัดการแผนก หรือผู้อำนวยการโครงการ (คุม PM อีกที)' }
+  })
+
+  // Level 6: Project Manager (PM)
   const rolePM = await prisma.jobRole.upsert({
-    where: { prefix: 'PM' }, update: {},
-    create: { name: 'Project Manager', prefix: 'PM', level: 3, departmentId: deptOPS.id, jobLineId: jlPMT.id, parentRoleId: rolePD.id }
-  })
-  const roleDM = await prisma.jobRole.upsert({
-    where: { prefix: 'DM' }, update: {},
-    create: { name: 'Design Manager', prefix: 'DM', level: 3, departmentId: deptENG.id, jobLineId: jlARC.id, parentRoleId: roleGM.id }
-  })
-  const roleQSM = await prisma.jobRole.upsert({
-    where: { prefix: 'QSM' }, update: {},
-    create: { name: 'QS Manager', prefix: 'QSM', level: 3, departmentId: deptENG.id, jobLineId: jlQSE.id, parentRoleId: roleGM.id }
-  })
-  const rolePROM = await prisma.jobRole.upsert({
-    where: { prefix: 'PROM' }, update: {},
-    create: { name: 'Procurement Manager', prefix: 'PROM', level: 3, departmentId: deptPRO.id, jobLineId: jlPRO.id, parentRoleId: roleGM.id }
-  })
-  const roleFINM = await prisma.jobRole.upsert({
-    where: { prefix: 'FINM' }, update: {},
-    create: { name: 'Finance Manager', prefix: 'FINM', level: 3, departmentId: deptFIN.id, jobLineId: jlFIN.id, parentRoleId: roleGM.id }
-  })
-  const roleHRM = await prisma.jobRole.upsert({
-    where: { prefix: 'HRM' }, update: {},
-    create: { name: 'HR Manager', prefix: 'HRM', level: 3, departmentId: deptHRA.id, jobLineId: jlHRA.id, parentRoleId: roleGM.id }
+    where: { prefix: 'PM' },
+    update: { level: 6, description: 'Project Lead - ผู้จัดการโครงการ (คุมสิทธิ์หน้าไซต์งานของตัวเองทั้งหมด)' },
+    create: { name: 'Project Manager (PM)', prefix: 'PM', level: 6, departmentId: deptOPS.id, jobLineId: jlPMT.id, parentRoleId: roleMGR.id, description: 'Project Lead - ผู้จัดการโครงการ (คุมสิทธิ์หน้าไซต์งานของตัวเองทั้งหมด)' }
   })
 
-  // Level 4: ผู้ช่วยผู้จัดการ (Assistant Managers)
-  const roleAPM = await prisma.jobRole.upsert({
-    where: { prefix: 'APM' }, update: {},
-    create: { name: 'Asst. Project Manager', prefix: 'APM', level: 4, departmentId: deptOPS.id, jobLineId: jlPMT.id, parentRoleId: rolePM.id }
+  // Level 7: Assistant Manager
+  const roleASM = await prisma.jobRole.upsert({
+    where: { prefix: 'ASM' },
+    update: { level: 7, description: 'Sub-Lead - รองผู้จัดการ หรือ หัวหน้าส่วนงานประเมินราคา (Chief QS)' },
+    create: { name: 'Assistant Manager / หัวหน้าส่วน', prefix: 'ASM', level: 7, departmentId: deptOPS.id, jobLineId: jlPMT.id, parentRoleId: rolePM.id, description: 'Sub-Lead - รองผู้จัดการ หรือ หัวหน้าส่วนงานประเมินราคา (Chief QS)' }
   })
 
-  // Level 5-6: Senior & Specialist
-  const roleS_ARC = await prisma.jobRole.upsert({
-    where: { prefix: 'S-ARC' }, update: {},
-    create: { name: 'Senior Architect', prefix: 'S-ARC', level: 5, departmentId: deptENG.id, jobLineId: jlARC.id, parentRoleId: roleDM.id }
-  })
-  const roleARC = await prisma.jobRole.upsert({
-    where: { prefix: 'ARC' }, update: {},
-    create: { name: 'Architect', prefix: 'ARC', level: 6, departmentId: deptENG.id, jobLineId: jlARC.id, parentRoleId: roleS_ARC.id }
-  })
-  const roleS_SE = await prisma.jobRole.upsert({
-    where: { prefix: 'S-SE' }, update: {},
-    create: { name: 'Senior Site Engineer', prefix: 'S-SE', level: 5, departmentId: deptOPS.id, jobLineId: jlENG.id, parentRoleId: rolePM.id }
-  })
-  const roleSE = await prisma.jobRole.upsert({
-    where: { prefix: 'SE' }, update: {},
-    create: { name: 'Site Engineer', prefix: 'SE', level: 6, departmentId: deptOPS.id, jobLineId: jlENG.id, parentRoleId: roleS_SE.id }
-  })
-  const roleQS = await prisma.jobRole.upsert({
-    where: { prefix: 'QS' }, update: {},
-    create: { name: 'Quantity Surveyor', prefix: 'QS', level: 6, departmentId: deptENG.id, jobLineId: jlQSE.id, parentRoleId: roleQSM.id }
-  })
-  const roleACC = await prisma.jobRole.upsert({
-    where: { prefix: 'ACC' }, update: {},
-    create: { name: 'Accountant', prefix: 'ACC', level: 6, departmentId: deptFIN.id, jobLineId: jlFIN.id, parentRoleId: roleFINM.id }
+  // Level 8: Senior
+  const roleSNR = await prisma.jobRole.upsert({
+    where: { prefix: 'SNR' },
+    update: { level: 8, description: 'Senior Professional - Senior Site Engineer, Senior QS (คนที่มีอำนาจตัดสินใจในงานเทคนิค)' },
+    create: { name: 'Senior (อาวุโส)', prefix: 'SNR', level: 8, departmentId: deptOPS.id, jobLineId: jlENG.id, parentRoleId: rolePM.id, description: 'Senior Professional - Senior Site Engineer, Senior QS (คนที่มีอำนาจตัดสินใจในงานเทคนิค)' }
   })
 
-  // Level 7-8: Supervisor & Officer
-  const rolePUR = await prisma.jobRole.upsert({
-    where: { prefix: 'PUR' }, update: {},
-    create: { name: 'Purchaser', prefix: 'PUR', level: 7, departmentId: deptPRO.id, jobLineId: jlPRO.id, parentRoleId: rolePROM.id }
+  // Level 9: Officer
+  const roleOFC = await prisma.jobRole.upsert({
+    where: { prefix: 'OFC' },
+    update: { level: 9, description: 'Professional - วิศวกร, สถาปนิก, พนักงานจัดซื้อ, พนักงานบัญชี' },
+    create: { name: 'Officer (พนักงานระดับกลาง)', prefix: 'OFC', level: 9, departmentId: deptENG.id, jobLineId: jlENG.id, parentRoleId: roleSNR.id, description: 'Professional - วิศวกร, สถาปนิก, พนักงานจัดซื้อ, พนักงานบัญชี' }
   })
+
+  // Level 10: Junior
+  const roleJUN = await prisma.jobRole.upsert({
+    where: { prefix: 'JUN' },
+    update: { level: 10, description: 'Support - แอดมินไซต์, ธุรการ, Document Controller (เน้นคีย์ข้อมูล)' },
+    create: { name: 'Junior / Coordinator', prefix: 'JUN', level: 10, departmentId: deptHRA.id, jobLineId: jlHRA.id, parentRoleId: roleOFC.id, description: 'Support - แอดมินไซต์, ธุรการ, Document Controller (เน้นคีย์ข้อมูล)' }
+  })
+
+  // Level 11: Foreman
   const roleFM = await prisma.jobRole.upsert({
-    where: { prefix: 'FM' }, update: {},
-    create: { name: 'Foreman', prefix: 'FM', level: 8, departmentId: deptOPS.id, jobLineId: jlCST.id, parentRoleId: roleSE.id }
-  })
-  const roleSTR = await prisma.jobRole.upsert({
-    where: { prefix: 'STR' }, update: {},
-    create: { name: 'Store / Inventory', prefix: 'STR', level: 8, departmentId: deptPRO.id, jobLineId: jlPRO.id, parentRoleId: rolePUR.id }
+    where: { prefix: 'FM' },
+    update: { level: 11, description: 'Site Ops - Leader - หัวหน้าคนงาน, โฟร์แมน (ดูเฉพาะงานหน้าไซต์ เบิกของ)' },
+    create: { name: 'Foreman / Supervisor', prefix: 'FM', level: 11, departmentId: deptOPS.id, jobLineId: jlCST.id, parentRoleId: rolePM.id, description: 'Site Ops - Leader - หัวหน้าคนงาน, โฟร์แมน (ดูเฉพาะงานหน้าไซต์ เบิกของ)' }
   })
 
-  // Level 9-10: General Staff & Worker
-  const roleADM = await prisma.jobRole.upsert({
-    where: { prefix: 'ADM' }, update: {},
-    create: { name: 'Admin', prefix: 'ADM', level: 9, departmentId: deptHRA.id, jobLineId: jlHRA.id, parentRoleId: roleHRM.id }
-  })
-  const roleGW = await prisma.jobRole.upsert({
-    where: { prefix: 'GW' }, update: {},
-    create: { name: 'General Worker', prefix: 'GW', level: 10, departmentId: deptOPS.id, jobLineId: jlCST.id, parentRoleId: roleFM.id }
+  // Level 12: Skilled Labor
+  const roleSKL = await prisma.jobRole.upsert({
+    where: { prefix: 'SKL' },
+    update: { level: 12, description: 'Site Ops - Worker - ช่างปูน, ช่างไม้ (ลงเวลาเข้างาน, รับมอบหมาย Task)' },
+    create: { name: 'Skilled Labor (ช่างฝีมือ)', prefix: 'SKL', level: 12, departmentId: deptOPS.id, jobLineId: jlCST.id, parentRoleId: roleFM.id, description: 'Site Ops - Worker - ช่างปูน, ช่างไม้ (ลงเวลาเข้างาน, รับมอบหมาย Task)' }
   })
 
-  console.log('✅ Seed: Job Roles สำเร็จ')
-  console.log('🎉 ข้อมูล Master Data โครงสร้างองค์กรพร้อมใช้งานแล้ว!')
+  // Level 13: General Labor
+  const roleLBR = await prisma.jobRole.upsert({
+    where: { prefix: 'LBR' },
+    update: { level: 13, description: 'Site Ops - Basic - กรรมกร (มีแค่โปรไฟล์ในระบบให้ HR ทำเงินเดือน ไม่ต้องมีรหัส Login)' },
+    create: { name: 'General Labor (คนงานทั่วไป)', prefix: 'LBR', level: 13, departmentId: deptOPS.id, jobLineId: jlCST.id, parentRoleId: roleFM.id, description: 'Site Ops - Basic - กรรมกร (มีแค่โปรไฟล์ในระบบให้ HR ทำเงินเดือน ไม่ต้องมีรหัส Login)' }
+  })
+
+  console.log('✅ Seed: Job Roles (14 ระดับ) สำเร็จ')
+
+  // ลบทิ้งหรืออัปเดตตำแหน่งเก่าๆ ที่ไม่อยู่ในสารบบใหม่ (ถ้าจำเป็น)
+  // ในที่นี้จะปล่อยไว้ก่อน หรืออาจจะลบถ้าแน่ใจว่าไม่ได้ใช้งานแล้ว
+  
+  console.log('🎉 ข้อมูล Master Data โครงสร้างองค์กรใหม่พร้อมใช้งานแล้ว!')
 }
 
 main()
@@ -150,3 +166,4 @@ main()
   .finally(async () => {
     await prisma.$disconnect()
   })
+

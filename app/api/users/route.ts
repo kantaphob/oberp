@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcrypt";
 import { prisma } from "@/app/lib/prisma";
-
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/app/lib/authOptions";
 export async function GET() {
   try {
     const users = await prisma.user.findMany({
@@ -27,46 +28,74 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     
-    // 1. 🛑 จำลองดึงข้อมูลคนที่กดปุ่ม (ในของจริงดึงจาก Session)
-    // สมมติว่าคนที่ล็อกอินคือ HR (Level 3)
-    const currentUser = { id: "hr-uuid-123", level: 3 }; 
+    const session = await getServerSession(authOptions);
+    
+    if (!session || !session.user) {
+      return NextResponse.json({ error: "กรุณาเข้าสู่ระบบก่อนทำรายการ" }, { status: 401 });
+    }
+
+    const currentUser = session.user;
 
     // 2. ดึงข้อมูลตำแหน่งที่กำลังจะสร้าง
     const targetRole = await prisma.jobRole.findUnique({ where: { id: body.roleId } });
     if (!targetRole) return NextResponse.json({ error: "ไม่พบตำแหน่งนี้ในระบบ" }, { status: 400 });
 
+    // 🛡️ ป้องกันการสร้างบัญชี Level 0 ผ่านทาง API 
+    // อนุญาตให้สร้างได้ "เฉพาะ" กรณีที่คนสร้างคนปัจจุบันคือ Level 0 เท่านั้น (Co-Founder สร้างกันเองได้)
+    if (targetRole.level === 0 && currentUser.level !== 0) {
+      return NextResponse.json({ error: "ไม่สามารถสร้างบัญชีผู้ก่อตั้ง (Level 0) เพิ่มเติมได้ (ต้องใช้บัญชีระดับ God Mode ในการสร้างเท่านั้น)" }, { status: 403 });
+    }
+
+    // 🛡️ SUPERVISOR OVERRIDE & STAGING LOGIC
     let finalApproverId = null;
+    const { approverUsername, ...cleanPayload } = body;
 
-    // 🛡️ 3. ระบบตรวจเช็คสิทธิ์ (RBAC & Supervisor Override)
-    // ถ้าระดับตำแหน่งที่จะสร้าง "สูงกว่า" ตัวเอง (เลขน้อยกว่า)
-    if (targetRole.level < currentUser.level && !body.isAdmin) {
-      
-      const { approverUsername } = body;
-
+    // ถ้าคนสร้างไม่ใช่ Level 0 จะต้องมีการขออนุมัติ (Stage to Report)
+    if (currentUser.level > 0) {
       if (!approverUsername) {
         return NextResponse.json({ 
-          requiresOverride: true, 
-          error: `การสร้างตำแหน่ง ${targetRole.name} ต้องได้รับการอนุมัติจากผู้บริหาร` 
+          error: "สิทธิ์ไม่เพียงพอ: กรุณาระบุรหัสผู้ดูแล (Level 0) เพื่อส่งเรื่องขออนุมัติ", 
+          requireSupervisor: true 
         }, { status: 403 });
       }
 
-      // ตรวจสอบข้อมูลผู้บริหารที่มาอนุมัติ
-      const approver = await prisma.user.findUnique({ 
-        where: { username: approverUsername },
+      // ตรวจสอบผู้ยืนยัน (Case-insensitive & Trim)
+      const cleanUsername = approverUsername?.trim();
+      const approver = await prisma.user.findFirst({ 
+        where: { 
+          username: {
+            equals: cleanUsername,
+            mode: 'insensitive'
+          }
+        },
         include: { role: true }
       });
 
-      if (!approver || approver.status !== "ACTIVE") {
-        return NextResponse.json({ error: "ไม่พบผู้บริหาร หรือบัญชีผู้บริหารไม่พร้อมใช้งานหรือไม่ถูกต้อง" }, { status: 403 });
+      if (!approver || (approver.role?.level ?? 999) !== 0) {
+        return NextResponse.json({ error: `ไม่พบรหัสผู้ดูแล "${cleanUsername}" ที่มีระดับ Level 0 ในระบบ` }, { status: 403 });
       }
 
-      // เช็คว่าผู้บริหารที่มาอนุมัติ ตำแหน่งสูงพอไหม? (ต้อง Level เล็กกว่าหรือเท่ากับ ตำแหน่งที่จะสร้าง)
-      if (!approver.role || approver.role.level > targetRole.level) {
-        return NextResponse.json({ error: `ผู้บริหารท่านนี้ไม่มีสิทธิ์อนุมัติตำแหน่ง ${targetRole.name}` }, { status: 403 });
-      }
+      // บันทึกลงระบบ Staging (PendingAction)
+      // เคลียร์ฟิลด์ที่ไม่เกี่ยวข้องออกก่อนลง DB ( isAdmin, approverUsername ถูกดึงออกไปแล้ว)
+      console.log("DEBUG POST: Prisma Keys available:", Object.keys(prisma).filter(k => !k.startsWith("_")));
+      const payloadToSave: any = { ...cleanPayload };
+      if (payloadToSave.password) payloadToSave.password = "********";
 
-      // อนุมัติผ่าน! เก็บ ID ผู้บริหารไว้เป็นหลักฐาน
-      finalApproverId = approver.id;
+      await prisma.pendingAction.create({
+        data: {
+          action: "CREATE_USER",
+          description: `ขอสั่งสร้างพนักงานใหม่ @${body.username || "unknown"} (${targetRole.name}) โดย ${currentUser.username}`,
+          payload: JSON.parse(JSON.stringify(payloadToSave)), // ล้างค่า undefined เพื่อป้องกัน Error 500
+          targetModel: "User",
+          requesterId: currentUser.id,
+          approverId: approver.id,
+          status: "PENDING"
+        }
+      });
+
+      return NextResponse.json({ 
+        message: "สั่งสร้างข้อมูลสำเร็จ (รายการถูกส่งไปที่ Report เพื่อรอการยืนยันขั้นตอนสุดท้าย)" 
+      }, { status: 202 });
     }
 
     const exist = await prisma.user.findFirst({
@@ -105,7 +134,7 @@ export async function POST(req: Request) {
         passwordHash: hashedPassword,
         status: body.status || "ACTIVE",
         roleId: body.roleId,
-        // createdById: currentUser.id, // ระงับการบันทึก ID จำลองซึ่งไม่มีตัวตนในฐานข้อมูล
+        createdById: currentUser.id, // บันทึก ID ผู้สร้างที่แท้จริง
         approvedById: finalApproverId, // เก็บหลักฐานคนยืนยัน (ถ้ามี)
         
         profile: {

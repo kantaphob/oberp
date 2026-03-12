@@ -9,6 +9,7 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
+
   return (
     <div className="min-h-screen bg-slate-50 flex font-sans text-slate-800 selection:bg-blue-100 selection:text-blue-900">
       <Sidebar />
@@ -23,7 +24,7 @@ export default function DashboardLayout({
             </h1>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
             <div className="hidden md:flex items-center bg-slate-100 px-3 py-1.5 rounded-full text-slate-400">
               <span className="text-xs">ค้นหาข้อมูล (Ctrl+K)</span>
             </div>

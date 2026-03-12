@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import { useSession, signOut } from "next-auth/react";
 import {
   Menu as MenuIcon,
   X,
@@ -11,6 +12,7 @@ import {
   ChevronDown,
   PanelLeftClose,
   PanelLeftOpen,
+  User as UserIcon,
 } from "lucide-react";
 import * as Icons from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -123,7 +125,15 @@ export const MENU_DATA: MenuGroup[] = [
         subMenus: [
           {
             name: "Permission",
-            href: "/dashboard/omega/Permission",
+            href: "/dashboard/omega/permission",
+          },
+          {
+            name: "ActivityLog",
+            href: "/dashboard/omega/activityLog",
+          },
+          {
+            name: "Report",
+            href: "/dashboard/omega/report",
           },
         ],
       },
@@ -293,6 +303,7 @@ const getIcon = (iconName: string) => {
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const { data: session } = useSession();
 
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [openCategories, setOpenCategories] = useState<string[]>([]);
@@ -335,7 +346,63 @@ export default function Sidebar() {
         : [...prev, categoryId],
     );
   };
+  // ── Role color (deterministic hash → same palette as JobRole levels) ──
+  const ROLE_PALETTES = [
+    {
+      bg: "rgba(254,226,226,0.9)",
+      border: "rgba(252,165,165,0.5)",
+      text: "#b91c1c",
+      glow: "rgba(239,68,68,0.25)",
+    }, // rose
+    {
+      bg: "rgba(255,237,213,0.9)",
+      border: "rgba(253,186,116,0.5)",
+      text: "#c2410c",
+      glow: "rgba(249,115,22,0.25)",
+    }, // orange
+    {
+      bg: "rgba(254,249,195,0.9)",
+      border: "rgba(253,224,71,0.5)",
+      text: "#a16207",
+      glow: "rgba(234,179,8,0.25)",
+    }, // yellow
+    {
+      bg: "rgba(220,252,231,0.9)",
+      border: "rgba(134,239,172,0.5)",
+      text: "#15803d",
+      glow: "rgba(34,197,94,0.25)",
+    }, // green
+    {
+      bg: "rgba(204,251,241,0.9)",
+      border: "rgba(94,234,212,0.5)",
+      text: "#0f766e",
+      glow: "rgba(20,184,166,0.25)",
+    }, // teal
+    {
+      bg: "rgba(219,234,254,0.9)",
+      border: "rgba(147,197,253,0.5)",
+      text: "#1d4ed8",
+      glow: "rgba(59,130,246,0.25)",
+    }, // blue
+    {
+      bg: "rgba(237,233,254,0.9)",
+      border: "rgba(196,181,253,0.5)",
+      text: "#6d28d9",
+      glow: "rgba(139,92,246,0.25)",
+    }, // violet
+    {
+      bg: "rgba(252,231,243,0.9)",
+      border: "rgba(249,168,212,0.5)",
+      text: "#be185d",
+      glow: "rgba(236,72,153,0.25)",
+    }, // pink
+  ];
 
+  const getRolePalette = (name: string) => {
+    if (!name) return ROLE_PALETTES[5]; // default blue
+    const hash = [...name].reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+    return ROLE_PALETTES[hash % ROLE_PALETTES.length];
+  };
   return (
     <>
       <button
@@ -524,34 +591,217 @@ export default function Sidebar() {
           </div>
         </nav>
 
-        {/* Temporary static profile since auth is removed */}
-        <div className="p-3 border-t border-slate-100 bg-slate-50/50">
-          <div
-            className={`flex items-center rounded-xl p-2 transition-all duration-300 ${isCollapsed ? "justify-center" : "gap-3"}`}
-          >
-            <div className="w-9 h-9 rounded-full bg-slate-800 flex items-center justify-center text-white font-bold text-xs shrink-0 shadow-sm">
-              AD
-            </div>
-            {!isCollapsed && (
-              <div className="overflow-hidden min-w-0">
-                <p className="text-[13px] font-semibold text-slate-800 truncate leading-tight">
-                  Admin User
-                </p>
-                <p className="text-[11px] text-slate-500 truncate leading-tight mt-0.5">
-                  Super Administrator
-                </p>
-              </div>
-            )}
-          </div>
+        {/* User Profile Section */}
+        <div className="p-3 border-t border-white/60">
+          <style>{`
+    .liquid-glass-card {
+      background: linear-gradient(135deg,rgba(255,255,255,0.72) 0%,rgba(255,255,255,0.48) 40%,rgba(240,245,255,0.52) 100%);
+      backdrop-filter: blur(20px) saturate(1.8) brightness(1.05);
+      -webkit-backdrop-filter: blur(20px) saturate(1.8) brightness(1.05);
+      border: 1px solid rgba(255,255,255,0.85);
+      box-shadow: 0 2px 24px rgba(148,163,220,0.18), 0 1px 0px rgba(255,255,255,0.9) inset;
+    }
+    .liquid-glass-card::before {
+      content:''; position:absolute; inset:0; border-radius:inherit;
+      background: linear-gradient(160deg, rgba(255,255,255,0.55) 0%, transparent 45%);
+      pointer-events:none;
+    }
+    .liquid-avatar {
+      background: linear-gradient(135deg, #60a5fa 0%, #818cf8 100%);
+      box-shadow: 0 4px 16px rgba(99,130,255,0.35), 0 1px 0 rgba(255,255,255,0.6) inset;
+    }
+    .liquid-logout {
+      background: linear-gradient(135deg,rgba(255,241,242,0.85) 0%,rgba(254,226,226,0.75) 100%);
+      border: 1px solid rgba(252,165,165,0.45);
+      backdrop-filter: blur(8px);
+      box-shadow: 0 1px 0 rgba(255,255,255,0.8) inset, 0 2px 8px rgba(239,68,68,0.08);
+      transition: all 0.2s ease;
+    }
+    .liquid-logout:hover {
+      background: linear-gradient(135deg,rgba(255,228,230,0.95) 0%,rgba(254,202,202,0.88) 100%);
+      box-shadow: 0 1px 0 rgba(255,255,255,0.9) inset, 0 4px 16px rgba(239,68,68,0.15);
+      transform: translateY(-1px);
+    }
+    .liquid-divider {
+      height:1px;
+      background: linear-gradient(90deg, transparent, rgba(148,163,220,0.3) 30%, rgba(148,163,220,0.3) 70%, transparent);
+    }
+    .liquid-row { display:flex; align-items:flex-start; gap:6px; min-width:0; }
+    .liquid-label {
+      font-size:9px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase;
+      color:rgba(148,163,184,0.9); white-space:nowrap; line-height:1.6; padding-top:1px;
+      min-width:46px;
+    }
+    .liquid-value {
+      font-size:11px; font-weight:600; color:#334155;
+      overflow:hidden; text-overflow:ellipsis; white-space:nowrap; line-height:1.6;
+    }
+    .online-dot {
+      background: radial-gradient(circle at 35% 35%, #6ee7b7, #10b981);
+      box-shadow: 0 0 0 2px rgba(255,255,255,0.9), 0 0 6px rgba(16,185,129,0.5);
+    }
+    .liquid-glass-collapsed {
+      background: linear-gradient(135deg, rgba(255,255,255,0.7), rgba(240,245,255,0.6));
+      backdrop-filter: blur(16px) saturate(1.6);
+      border: 1px solid rgba(255,255,255,0.8);
+      box-shadow: 0 2px 16px rgba(148,163,220,0.15), 0 1px 0 rgba(255,255,255,0.9) inset;
+    }
+  `}</style>
 
-          <button
-            className={`mt-2 flex items-center justify-center gap-2 w-full rounded-xl text-rose-600 bg-rose-50 hover:bg-rose-100 transition-colors font-medium text-xs
-            ${isCollapsed ? "py-2" : "py-2.5"}
-          `}
-          >
-            <LogOut size={14} />
-            {!isCollapsed && <span>ออกจากระบบ</span>}
-          </button>
+          {!isCollapsed ? (
+            (() => {
+              const roleName = session?.user?.roleName || "";
+              const palette = getRolePalette(roleName);
+              return (
+                <div className="liquid-glass-card relative rounded-2xl p-3.5 overflow-hidden">
+                  {/* Ambient blob — สีตาม role */}
+                  <div
+                    className="absolute -top-6 -right-6 w-28 h-28 rounded-full pointer-events-none"
+                    style={{
+                      background: `radial-gradient(circle, ${palette.glow} 0%, transparent 70%)`,
+                    }}
+                  />
+                  <div
+                    className="absolute -bottom-6 -left-4 w-20 h-20 rounded-full pointer-events-none"
+                    style={{
+                      background: `radial-gradient(circle, ${palette.glow} 0%, transparent 70%)`,
+                    }}
+                  />
+
+                  {/* ── Avatar + Name ── */}
+                  <div className="relative flex items-center gap-3">
+                    {/* Avatar rim ใช้สี role */}
+                    <div className="relative shrink-0">
+                      <div
+                        className="liquid-avatar w-10 h-10 rounded-xl flex items-center justify-center text-white"
+                        style={{
+                          boxShadow: `0 4px 16px ${palette.glow}, 0 1px 0 rgba(255,255,255,0.6) inset`,
+                        }}
+                      >
+                        <UserIcon size={18} />
+                      </div>
+                      <span className="online-dot absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full" />
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[13px] font-bold text-slate-800 truncate leading-tight">
+                        {session?.user?.lastName
+                          ? `${session.user?.firstName || ""} ${session.user.lastName}`
+                          : session?.user?.firstName || "Guest"}
+                      </p>
+
+                      {/* ── Role Badge — dynamic color ── */}
+                      <span
+                        className="inline-flex items-center mt-1 px-2 py-0.5 rounded-md text-[9px] font-bold tracking-widest uppercase"
+                        style={{
+                          background: `linear-gradient(135deg, ${palette.bg}, ${palette.bg})`,
+                          border: `1px solid ${palette.border}`,
+                          color: palette.text,
+                          boxShadow: `0 1px 0 rgba(255,255,255,0.8) inset, 0 2px 8px ${palette.glow}`,
+                        }}
+                      >
+                        {/* dot indicator */}
+                        <span
+                          className="w-1.5 h-1.5 rounded-full mr-1.5 shrink-0"
+                          style={{ background: palette.text, opacity: 0.7 }}
+                        />
+                        {roleName || "User"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="liquid-divider my-2.5" />
+
+                  {/* ── Info rows ── */}
+                  <div className="relative space-y-1.5">
+                    <div className="liquid-row">
+                      <span className="liquid-label">User</span>
+                      <span className="liquid-value font-mono text-slate-500">
+                        @{session?.user?.username || "guest"}
+                      </span>
+                    </div>
+                    <div className="liquid-row">
+                      <span className="liquid-label">Dept.</span>
+                      <span className="liquid-value">
+                        {session?.user?.departmentName || (
+                          <span
+                            style={{
+                              color: "#cbd5e1",
+                              fontStyle: "italic",
+                              fontWeight: 400,
+                            }}
+                          >
+                            —
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                    <div className="liquid-row">
+                      <span className="liquid-label">Line</span>
+                      <span className="liquid-value">
+                        {session?.user?.jobLineName || (
+                          <span
+                            style={{
+                              color: "#cbd5e1",
+                              fontStyle: "italic",
+                              fontWeight: 400,
+                            }}
+                          >
+                            —
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="liquid-divider my-2.5" />
+
+                  {/* ── Logout ── */}
+                  <button
+                    onClick={() => signOut({ callbackUrl: "/login" })}
+                    className="liquid-logout w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-rose-500 text-[11px] font-semibold"
+                  >
+                    <LogOut size={12} />
+                    <span>ออกจากระบบ</span>
+                  </button>
+                </div>
+              );
+            })()
+          ) : (
+            /* ── Collapsed ── */
+            <div className="flex flex-col items-center gap-2">
+              <div className="liquid-glass-collapsed relative rounded-2xl p-2 flex flex-col items-center gap-2 w-full">
+                <div className="relative">
+                  <div
+                    className="liquid-avatar w-10 h-10 rounded-xl flex items-center justify-center text-white"
+                    style={{
+                      boxShadow: `0 4px 16px ${getRolePalette(session?.user?.roleName || "").glow}, 0 1px 0 rgba(255,255,255,0.6) inset`,
+                    }}
+                  >
+                    <UserIcon size={18} />
+                  </div>
+                  <span className="online-dot absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full" />
+                </div>
+                {/* Mini role dot */}
+                <span
+                  className="w-2 h-2 rounded-full"
+                  style={{
+                    background: getRolePalette(session?.user?.roleName || "")
+                      .text,
+                    opacity: 0.6,
+                  }}
+                  title={session?.user?.roleName || "User"}
+                />
+                <button
+                  onClick={() => signOut({ callbackUrl: "/login" })}
+                  title="ออกจากระบบ"
+                  className="liquid-logout flex items-center justify-center w-9 h-8 rounded-xl text-rose-500"
+                >
+                  <LogOut size={13} />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </aside>
     </>

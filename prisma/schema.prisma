@@ -7,21 +7,15 @@ datasource db {
   provider = "postgresql"
 }
 
-// ============================================================================
-// 👑 หมวด ALPHA & OMEGA (Core Structure & RBAC)
-// ============================================================================
 model ServiceUs {
-  id          String  @id @default(uuid())
-  name        String  @unique
-  code        String  @unique
+  id          String    @id @default(uuid())
+  name        String    @unique
+  code        String    @unique
   description String?
-  isActive    Boolean @default(true)
-
-  // 🌟 เพิ่มการเชื่อมโยง: 1 บริการหลัก มีได้หลายโปรเจกต์
-  projects Project[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  projects    Project[]
 
   @@map("core_services")
 }
@@ -44,37 +38,32 @@ model JobLine {
   id          String    @id @default(uuid())
   name        String    @unique
   code        String    @unique
-  description String?
-  isActive    Boolean   @default(true)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+  description String?
+  isActive    Boolean   @default(true)
   roles       JobRole[]
 
   @@map("core_job_lines")
 }
 
 model JobRole {
-  id          String  @id @default(uuid())
-  name        String  @unique
-  prefix      String  @unique
-  level       Int     @default(10)
-  description String?
-  isActive    Boolean @default(true)
-
-  departmentId String?
-  jobLineId    String?
-
-  // --- ระบบลำดับชั้น (Hierarchy) ---
-  parentRoleId String? // ID ของตำแหน่งหัวหน้า
-
-  parentRole     JobRole?  @relation("RoleHierarchy", fields: [parentRoleId], references: [id])
-  assistantRoles JobRole[] @relation("RoleHierarchy")
-
-  department   Department?   @relation(fields: [departmentId], references: [id])
-  jobLine      JobLine?      @relation(fields: [jobLineId], references: [id])
-  permissions  Permission[]
-  userProfiles UserProfile[]
-  users        User[]
+  id             String        @id @default(uuid())
+  name           String        @unique
+  prefix         String        @unique
+  level          Int           @default(10)
+  departmentId   String?
+  jobLineId      String?
+  parentRoleId   String?
+  description    String?
+  isActive       Boolean       @default(true)
+  department     Department?   @relation(fields: [departmentId], references: [id])
+  jobLine        JobLine?      @relation(fields: [jobLineId], references: [id])
+  parentRole     JobRole?      @relation("RoleHierarchy", fields: [parentRoleId], references: [id])
+  assistantRoles JobRole[]     @relation("RoleHierarchy")
+  permissions    Permission[]
+  userProfiles   UserProfile[]
+  users          User[]
 
   @@map("core_job_roles")
 }
@@ -93,263 +82,230 @@ model Permission {
 }
 
 model User {
-  id           String     @id @default(uuid())
-  username     String     @unique
-  passwordHash String
-  email        String?    @unique
-  status       UserStatus @default(PENDING)
-
-  roleId  String
-  profile UserProfile?
-  role    JobRole      @relation(fields: [roleId], references: [id])
-
-  // Relations การทำธุรกรรมต่างๆ
+  id               String            @id @default(uuid())
+  username         String            @unique
+  passwordHash     String
+  email            String?           @unique
+  status           UserStatus        @default(PENDING)
+  roleId           String
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  approvedById     String?
+  createdById      String?
+  profile          UserProfile?
+  approvedBy       User?             @relation("UserApprover", fields: [approvedById], references: [id])
+  usersApproved    User[]            @relation("UserApprover")
+  createdBy        User?             @relation("UserCreator", fields: [createdById], references: [id])
+  usersCreated     User[]            @relation("UserCreator")
+  role             JobRole           @relation(fields: [roleId], references: [id])
+  boqsApproved     BOQ[]             @relation("BOQApprover")
+  boqsCreated      BOQ[]             @relation("BOQCreator")
   attendances      Attendance[]
+  leaveRequests    LeaveRequest[]
   projects         Project[]         @relation("ProjectManager")
   tasks            Task[]            @relation("TaskAssignee")
-  leaveRequests    LeaveRequest[]
   purchaseRequests PurchaseRequest[] @relation("PRRequester")
-
-  boqsCreated  BOQ[] @relation("BOQCreator")
-  boqsApproved BOQ[] @relation("BOQApprover")
-
-  // 🌟 เพิ่มเติม: เก็บหลักฐานว่าใครสร้าง และใครอนุมัติ (Supervisor Override)
-  createdById  String?
-  approvedById String?
-
-  createdBy  User? @relation("UserCreator", fields: [createdById], references: [id])
-  approvedBy User? @relation("UserApprover", fields: [approvedById], references: [id])
-
-  usersCreated  User[] @relation("UserCreator")
-  usersApproved User[] @relation("UserApprover")
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  activityLogs     ActivityLog[]
+  
+  requestedActions PendingAction[]   @relation("Requester")
+  approvedActions  PendingAction[]   @relation("Approver")
 
   @@map("core_users")
 }
 
-model UserProfile {
-  id          String    @id @default(uuid())
-  userId      String    @unique
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  birthDate   DateTime?
-  gender      String?
-  nationality String?
+model PendingAction {
+  id             String   @id @default(uuid())
+  action         String   // e.g., "DELETE_USER", "UPDATE_USER", "DELETE_ROLE"
+  description    String
+  payload        Json     // Data to apply
+  targetModel    String   // e.g., "User", "JobRole"
+  targetId       String?
+  requesterId    String
+  approverId     String?  // The supervisor who authorized the staging
+  status         String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  taxId           String  @unique @db.VarChar(13)
+  requester      User     @relation("Requester", fields: [requesterId], references: [id])
+  approver       User?    @relation("Approver", fields: [approverId], references: [id])
+
+  @@map("sys_pending_actions")
+}
+
+model UserProfile {
+  id              String       @id @default(uuid())
+  userId          String       @unique
+  taxId           String       @unique @db.VarChar(13)
   firstName       String
   lastName        String
-  telephoneNumber String  @unique @db.VarChar(10)
+  telephoneNumber String       @unique @db.VarChar(10)
   lineId          String?
-
-  addressDetail String
-  subdistrictId Int?
-  districtId    Int?
-  provinceId    Int?
-  zipcode       String? @db.VarChar(5)
-
-  departmentId String
-  roleId       String
-  image        String?
-
-  department  Department   @relation(fields: [departmentId], references: [id])
-  role        JobRole      @relation(fields: [roleId], references: [id])
-  province    Province?    @relation(fields: [provinceId], references: [id])
-  district    District?    @relation(fields: [districtId], references: [id])
-  subdistrict Subdistrict? @relation(fields: [subdistrictId], references: [id])
-
-  startDate DateTime @default(now())
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  addressDetail   String
+  subdistrictId   Int?
+  districtId      Int?
+  provinceId      Int?
+  zipcode         String?      @db.VarChar(5)
+  departmentId    String
+  roleId          String
+  image           String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  birthDate       DateTime?
+  gender          String?
+  nationality     String?
+  startDate       DateTime     @default(now())
+  department      Department   @relation(fields: [departmentId], references: [id])
+  district        District?    @relation(fields: [districtId], references: [id])
+  province        Province?    @relation(fields: [provinceId], references: [id])
+  role            JobRole      @relation(fields: [roleId], references: [id])
+  subdistrict     Subdistrict? @relation(fields: [subdistrictId], references: [id])
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("core_user_profiles")
 }
-
-// ============================================================================
-// 📍 หมวด MASTER DATA (ข้อมูลที่อยู่ประเทศไทย)
-// ============================================================================
 
 model Province {
   id           Int           @id
   nameTh       String        @map("name_th")
   nameEn       String?       @map("name_en")
-  districts    District[]
   userProfiles UserProfile[]
+  districts    District[]
 
   @@map("provinces")
 }
 
 model District {
-  id         Int      @id
-  provinceId Int      @map("province_id")
-  province   Province @relation(fields: [provinceId], references: [id], onDelete: Cascade)
-
+  id           Int           @id
+  provinceId   Int           @map("province_id")
   nameTh       String        @map("name_th")
   nameEn       String?       @map("name_en")
-  subdistricts Subdistrict[]
   userProfiles UserProfile[]
+  province     Province      @relation(fields: [provinceId], references: [id], onDelete: Cascade)
+  subdistricts Subdistrict[]
 
   @@map("districts")
 }
 
 model Subdistrict {
-  id         Int      @id
-  districtId Int      @map("district_id")
-  district   District @relation(fields: [districtId], references: [id], onDelete: Cascade)
-
+  id           Int           @id
+  districtId   Int           @map("district_id")
   nameTh       String        @map("name_th")
   nameEn       String?       @map("name_en")
   lat          Float?
   lng          Float?        @map("long")
   zipcode      Int?
   userProfiles UserProfile[]
+  district     District      @relation(fields: [districtId], references: [id], onDelete: Cascade)
 
   @@map("subdistricts")
 }
 
-// ============================================================================
-// 📏 หมวด ESTIMATION & COST CONTROL (BOQ, WBS, Materials)
-// ============================================================================
-
 model Unit {
-  id       String  @id @default(uuid())
-  name     String  @unique
-  isActive Boolean @default(true)
-
-  materials MaterialCatalog[]
+  id        String            @id @default(uuid())
+  name      String            @unique
+  isActive  Boolean           @default(true)
   boqItems  BOQItem[]
+  materials MaterialCatalog[]
 
   @@map("est_units")
 }
 
 model WBSGroup {
-  id   String @id @default(uuid())
-  code String @unique
-  name String
-
+  id       String     @id @default(uuid())
+  code     String     @unique
+  name     String
   parentId String?
+  isActive Boolean    @default(true)
+  boqItems BOQItem[]
   parent   WBSGroup?  @relation("WBSHierarchy", fields: [parentId], references: [id])
   children WBSGroup[] @relation("WBSHierarchy")
-
-  isActive Boolean @default(true)
-
-  boqItems BOQItem[]
 
   @@map("est_wbs_groups")
 }
 
 model MaterialCategory {
-  id          String  @id @default(uuid())
-  name        String  @unique
+  id          String            @id @default(uuid())
+  name        String            @unique
   description String?
-  isActive    Boolean @default(true)
-
-  materials MaterialCatalog[]
+  isActive    Boolean           @default(true)
+  materials   MaterialCatalog[]
 
   @@map("est_material_categories")
 }
 
 model MaterialCatalog {
-  id    String  @id @default(uuid())
-  code  String  @unique
-  name  String
-  brand String?
-
+  id         String            @id @default(uuid())
+  code       String            @unique
+  name       String
+  brand      String?
   categoryId String?
+  unitId     String
+  unitPrice  Float             @default(0)
+  laborPrice Float             @default(0)
+  isActive   Boolean           @default(true)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  costType   CostType          @default(MATERIAL)
+  boqItems   BOQItem[]
   category   MaterialCategory? @relation(fields: [categoryId], references: [id])
-
-  unitId String
-  unit   Unit   @relation(fields: [unitId], references: [id])
-
-  costType   CostType @default(MATERIAL)
-  unitPrice  Float    @default(0)
-  laborPrice Float    @default(0)
-
-  isActive Boolean @default(true)
-
-  boqItems BOQItem[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  unit       Unit              @relation(fields: [unitId], references: [id])
 
   @@map("est_material_catalogs")
 }
 
-// ============================================================================
-// 👥 หมวด HRM (บุคคลและการเข้างาน)
-// ============================================================================
-
 model Attendance {
-  id     String @id @default(uuid())
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+  id          String         @id @default(uuid())
+  userId      String
   date        DateTime       @db.Date
   checkIn     DateTime?
   checkOut    DateTime?
   type        AttendanceType @default(PRESENT)
   locationLat Float?
   locationLng Float?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // 🌟 แก้ไข: ลบโค้ด BOQ ที่ไม่เกี่ยวข้องกันออกไปแล้ว
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("hrm_attendances")
 }
 
 model LeaveRequest {
-  id     String @id @default(uuid())
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  type      LeaveType   @default(PERSONAL_LEAVE)
+  id        String      @id @default(uuid())
+  userId    String
   startDate DateTime    @db.Date
   endDate   DateTime    @db.Date
   reason    String
   status    LeaveStatus @default(PENDING)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  type      LeaveType   @default(PERSONAL_LEAVE)
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("hrm_leave_requests")
 }
 
-// ============================================================================
-// 🏗️ หมวด OPERATIONS (ระบบโปรเจกต์และงานหน้าไซต์)
-// ============================================================================
-
 model Project {
-  id       String        @id @default(uuid())
-  code     String        @unique
-  name     String
-  location String?
-  status   ProjectStatus @default(PLANNING)
-
-  managerId String?
-  manager   User?   @relation("ProjectManager", fields: [managerId], references: [id])
-
-  tasks            Task[]
+  id               String            @id @default(uuid())
+  code             String            @unique
+  name             String
+  location         String?
+  status           ProjectStatus     @default(PLANNING)
+  managerId        String?
+  startDate        DateTime?
+  endDate          DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  customerId       String?
+  projectTypeId    String?
+  serviceUsId      String?
+  boqs             BOQ[]
   siteReports      DailySiteReport[]
+  customer         Customer?         @relation(fields: [customerId], references: [id])
+  manager          User?             @relation("ProjectManager", fields: [managerId], references: [id])
+  projectType      ProjectType?      @relation(fields: [projectTypeId], references: [id])
+  serviceUs        ServiceUs?        @relation(fields: [serviceUsId], references: [id])
+  tasks            Task[]
   purchaseRequests PurchaseRequest[]
-
-  startDate DateTime?
-  endDate   DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-
-  boqs BOQ[]
-
-  customer   Customer? @relation(fields: [customerId], references: [id])
-  customerId String?
-
-  projectType   ProjectType? @relation(fields: [projectTypeId], references: [id])
-  projectTypeId String?
-  serviceUs     ServiceUs?   @relation(fields: [serviceUsId], references: [id])
-  serviceUsId   String?
 
   @@map("ops_projects")
 }
@@ -364,35 +320,30 @@ model ProjectType {
 }
 
 model Task {
-  id        String  @id @default(uuid())
-  projectId String
-  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-
-  title  String
-  status TaskStatus @default(TODO)
-
+  id         String     @id @default(uuid())
+  projectId  String
+  title      String
+  status     TaskStatus @default(TODO)
   assigneeId String?
-  assignee   User?   @relation("TaskAssignee", fields: [assigneeId], references: [id])
-
-  dueDate   DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  dueDate    DateTime?
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  assignee   User?      @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  project    Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@map("ops_tasks")
 }
 
 model DailySiteReport {
-  id        String  @id @default(uuid())
-  projectId String
-  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-
+  id          String   @id @default(uuid())
+  projectId   String
   reportDate  DateTime @db.Date
   weather     String?
   workerCount Int      @default(0)
   progress    String
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@map("ops_daily_site_reports")
 }
@@ -403,131 +354,99 @@ model BOQ {
   version    Int            @default(1)
   status     DocumentStatus @default(DRAFT)
   isApproved Boolean        @default(false)
-
-  projectId String
-  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-
+  projectId  String
   creatorId  String?
-  creator    User?   @relation("BOQCreator", fields: [creatorId], references: [id])
   approverId String?
-  approver   User?   @relation("BOQApprover", fields: [approverId], references: [id])
-
-  remarks String?
-
-  items BOQItem[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // 🌟 แก้ไข: ลบข้อมูลฟิลด์ที่เบิ้ลและโยงผิดตาราง (Attendance, User ซ้ำ) ออกหมดแล้ว
+  remarks    String?
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+  items      BOQItem[]
+  approver   User?          @relation("BOQApprover", fields: [approverId], references: [id])
+  creator    User?          @relation("BOQCreator", fields: [creatorId], references: [id])
+  project    Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@map("est_boqs")
 }
 
 model BOQItem {
-  id    String @id @default(uuid())
-  boqId String
-  boq   BOQ    @relation(fields: [boqId], references: [id], onDelete: Cascade)
-
-  wbsId String
-  wbs   WBSGroup @relation(fields: [wbsId], references: [id])
-
+  id             String           @id @default(uuid())
+  boqId          String
+  wbsId          String
   materialId     String?
-  material       MaterialCatalog? @relation(fields: [materialId], references: [id])
   customItemName String?
-
-  qty Float // ปริมาณที่ใช้
-
-  unitId String
-  unit   Unit   @relation(fields: [unitId], references: [id])
-
-  materialPrice Float
-  laborPrice    Float
-
-  totalMaterial Float @default(0)
-  totalLabor    Float @default(0)
-  totalAmount   Float @default(0)
-
-  remark String?
+  qty            Float
+  unitId         String
+  materialPrice  Float
+  laborPrice     Float
+  totalMaterial  Float            @default(0)
+  totalLabor     Float            @default(0)
+  totalAmount    Float            @default(0)
+  remark         String?
+  boq            BOQ              @relation(fields: [boqId], references: [id], onDelete: Cascade)
+  material       MaterialCatalog? @relation(fields: [materialId], references: [id])
+  unit           Unit             @relation(fields: [unitId], references: [id])
+  wbs            WBSGroup         @relation(fields: [wbsId], references: [id])
 
   @@map("est_boq_items")
 }
 
-// ============================================================================
-// 🛒 หมวด PROCUREMENT (จัดซื้อและคลังสินค้า)
-// ============================================================================
-
 model PurchaseRequest {
-  id       String         @id @default(uuid())
-  prNumber String         @unique
-  status   DocumentStatus @default(DRAFT)
-
-  projectId String
-  project   Project @relation(fields: [projectId], references: [id])
-
+  id          String         @id @default(uuid())
+  prNumber    String         @unique
+  status      DocumentStatus @default(DRAFT)
+  items       Json
+  remarks     String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  projectId   String
   requesterId String
-  requester   User   @relation("PRRequester", fields: [requesterId], references: [id])
-
-  items   Json
-  remarks String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  project     Project        @relation(fields: [projectId], references: [id])
+  requester   User           @relation("PRRequester", fields: [requesterId], references: [id])
 
   @@map("pro_purchase_requests")
 }
 
-// ============================================================================
-// 💼 หมวด CRM & SALES (ข้อมูลลูกค้าและประเภทโครงการ)
-// ============================================================================
 model Customer {
-  id            String  @id @default(uuid())
-  customerCode  String  @unique
+  id            String    @id @default(uuid())
+  customerCode  String    @unique
   name          String
-  taxId         String? @db.VarChar(13)
+  taxId         String?   @db.VarChar(13)
   contactPerson String?
   telephone     String
   email         String?
   addressDetail String?
-
   subdistrictId Int?
   districtId    Int?
   provinceId    Int?
-  zipcode       String? @db.VarChar(5)
-
-  projects Project[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  zipcode       String?   @db.VarChar(5)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  projects      Project[]
 
   @@map("crm_customers")
 }
 
-// ============================================================================
-// 🔴 ENUMS (สถานะทั้งหมดในระบบ)
-// ============================================================================
-
 enum UserStatus {
-  ACTIVE // ใช้งาน
-  INACTIVE // ไม่ใช้งาน
-  SUSPENDED // ระงับ
-  ON_LEAVE // ลา
-  RESIGNED // ลาออก
-  TERMINATED // ถูกสิ้นสุด
-  LOCKED // ถูกล็อก
-  PENDING // รอ
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  ON_LEAVE
+  RESIGNED
+  TERMINATED
+  LOCKED
+  PENDING
 }
 
 enum AttendanceType {
-  PRESENT // 
-  LATE // สาย
-  ABSENT // ขาด
-  LEAVE // ลา
-  HALFDAY // ครึ่งวัน
-  OVERTIME // ล่วงเวลา
-  HOLIDAY // หยุด
-  WFH // ทำงานบ้าน
-  ONSITE // ทำงานที่สถานที่
+  PRESENT
+  LATE
+  ABSENT
+  LEAVE
+  HALFDAY
+  OVERTIME
+  HOLIDAY
+  WFH
+  ONSITE
 }
 
 enum LeaveType {
@@ -589,9 +508,24 @@ enum DocumentStatus {
 }
 
 enum CostType {
-  MATERIAL // (M) ค่าวัสดุ
-  LABOR // (L) ค่าแรงช่าง/พนักงาน
-  EQUIPMENT // (E) ค่าเครื่องจักร/เครื่องมือ
-  SUBCONTRACTOR // (S) ค่าจ้างเหมาช่วง (รวมของ+แรง)
-  SERVICE // (F) ค่าบริการ/ค่าดำเนินการ/ที่ปรึกษา
+  MATERIAL
+  LABOR
+  EQUIPMENT
+  SUBCONTRACTOR
+  SERVICE
+}
+
+model ActivityLog {
+  id          String   @id @default(uuid())
+  action      String // e.g., "USER_LOGIN", "CREATE_DOCUMENT"
+  description String
+  userId      String?
+  roleName    String?
+  ipAddress   String?
+  status      String   @default("SUCCESS") // "SUCCESS", "FAILED", "WARNING"
+  createdAt   DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("sys_activity_logs")
 }

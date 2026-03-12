@@ -21,6 +21,7 @@ export default function LoginPage() {
     identifier: "",
     password: "",
   });
+  const [rememberMe, setRememberMe] = useState(false); // 🌟 Add remember me state
   const [showPassword, setShowPassword] = useState(false);
   const [status, setStatus] = useState<
     "idle" | "loading" | "success" | "error"
@@ -94,6 +95,7 @@ export default function LoginPage() {
       const result = await login({
         identifier: formData.identifier.trim(),
         password: formData.password,
+        remember: rememberMe, // 🌟 Pass remember me preference
       });
 
       if (result.success) {
@@ -287,10 +289,12 @@ export default function LoginPage() {
                 <label className="flex items-center gap-2 cursor-pointer group">
                   <input
                     type="checkbox"
+                    checked={rememberMe} // 🌟 Bind to state
+                    onChange={(e) => setRememberMe(e.target.checked)} // 🌟 Handle change
                     className="w-4 h-4 rounded border-gray-300 text-black focus:ring-black transition-all cursor-pointer bg-white/50"
                   />
                   <span className="text-gray-600 group-hover:text-black transition-colors">
-                    Remember me
+                    จดจำการเข้าสู่ระบบ
                   </span>
                 </label>
                 <a
@@ -339,68 +343,78 @@ export default function LoginPage() {
                     )}
                   </span>
                 </button>
-
-                {/* Security Info */}
-                <div className="mt-4 text-center text-xs text-gray-500">
-                  <p>🔒 การเชื่อมต่อของคุณได้รับการเข้ารหัส</p>
-                </div>
               </div>
             </form>
 
-            {/* Quick Test Buttons (ลบออกใน Production) */}
-            {process.env.NODE_ENV === "development" && (
-              <div className="mt-6 p-4 bg-blue-50/80 backdrop-blur-md rounded-xl border border-blue-200">
-                <p className="text-xs font-bold text-blue-900 mb-2">
-                  🧪 TEST ACCOUNTS:
-                </p>
-                <div className="space-y-2 text-xs text-blue-800">
-                  <button
-                    onClick={() => {
-                      setFormData({
-                        identifier: "md00001",
-                        password: "root",
-                      });
-                    }}
-                    className="block w-full text-left px-3 py-2 bg-white/50 rounded-lg hover:bg-white/80 transition-colors"
-                  >
-                    <strong>Root:</strong> md00001 / root
-                  </button>
-                  <button
-                    onClick={() => {
-                      setFormData({
-                        identifier: "admin@obnithi.com",
-                        password: "admin123",
-                      });
-                    }}
-                    className="block w-full text-left px-3 py-2 bg-white/50 rounded-lg hover:bg-white/80 transition-colors"
-                  >
-                    <strong>Admin:</strong> admin@obnithi.com / admin123
-                  </button>
-                  <button
-                    onClick={() => {
-                      setFormData({
-                        identifier: "manager@obnithi.com",
-                        password: "manager123",
-                      });
-                    }}
-                    className="block w-full text-left px-3 py-2 bg-white/50 rounded-lg hover:bg-white/80 transition-colors"
-                  >
-                    <strong>Manager:</strong> manager@obnithi.com / manager123
-                  </button>
-                  <button
-                    onClick={() => {
-                      setFormData({
-                        identifier: "user@obnithi.com",
-                        password: "user123",
-                      });
-                    }}
-                    className="block w-full text-left px-3 py-2 bg-white/50 rounded-lg hover:bg-white/80 transition-colors"
-                  >
-                    <strong>User:</strong> user@obnithi.com / user123
-                  </button>
-                </div>
+            {/* Quick Test Buttons */}
+            <div className="mt-8 p-4 bg-white/20 backdrop-blur-md rounded-2xl border border-white/40 shadow-sm">
+              <p className="text-xs font-bold text-gray-800 mb-3 uppercase tracking-wider text-center">
+                Quick Test Login
+              </p>
+              <div className="grid grid-cols-1 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFormData({
+                      identifier: "FND291295",
+                      password: "ohmspkNtr",
+                    });
+                    setRememberMe(true); // 🌟 Enable remember me for demo
+                  }}
+                  className="w-full relative overflow-hidden group px-4 py-3 bg-white/60 hover:bg-white border border-white/50 rounded-xl transition-all duration-300 text-left flex items-center justify-between shadow-sm active:scale-[0.98]"
+                >
+                  <div className="flex flex-col">
+                    <span className="font-bold text-gray-900 text-sm">
+                      ผู้ดูแลระบบ (จดจำ)
+                    </span>
+                    <span className="text-xs text-gray-500 font-medium">
+                      admin@obnithi.com • หมดเวลา 23:59 วันนี้
+                    </span>
+                  </div>
+                  <div className="w-8 h-8 rounded-full bg-black/5 flex items-center justify-center group-hover:bg-black group-hover:text-white transition-colors">
+                    <ArrowRight
+                      size={14}
+                      className="opacity-50 group-hover:opacity-100"
+                    />
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFormData({
+                      identifier: "JUN26001",
+                      password: "1234",
+                    });
+                    setRememberMe(false); //
+                  }}
+                  className="w-full relative overflow-hidden group px-4 py-3 bg-white/60 hover:bg-white border border-white/50 rounded-xl transition-all duration-300 text-left flex items-center justify-between shadow-sm active:scale-[0.98]"
+                >
+                  <div className="flex flex-col">
+                    <span className="font-bold text-gray-900 text-sm">
+                      ผู้ดูแลระบบ (ปกติ)
+                    </span>
+                    <span className="text-xs text-gray-500 font-medium">
+                      admin@obnithi.com • 8 ชั่วโมง
+                    </span>
+                  </div>
+                  <div className="w-8 h-8 rounded-full bg-black/5 flex items-center justify-center group-hover:bg-black group-hover:text-white transition-colors">
+                    <ArrowRight
+                      size={14}
+                      className="opacity-50 group-hover:opacity-100"
+                    />
+                  </div>
+                </button>
               </div>
-            )}
+              <div className="mt-3 p-2 bg-white/30 rounded-lg">
+                <p className="text-xs text-gray-700 text-center">
+                  ⏰ <strong>จดจำการเข้าสู่ระบบ:</strong> ทำงานถึง 23:59
+                  ของวันนี้เท่านั้น
+                </p>
+                <p className="text-xs text-gray-600 text-center mt-1">
+                  Admin: สูงสุด 4 ชม. | ทั่วไป: ถึง 23:59 | ปกติ: 8 ชม.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </div>

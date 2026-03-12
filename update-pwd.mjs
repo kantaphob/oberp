@@ -1,0 +1,1 @@
+import { PrismaClient } from './app/generated/prisma/index.js'; import bcrypt from 'bcrypt'; async function r() { const prisma = new PrismaClient({ accelerateUrl: process.env.DATABASE_URL }); await prisma.user.updateMany({ where: { username: 'MD26001' }, data: { passwordHash: await bcrypt.hash('Roots', 10) }}); console.log('ok'); } r();

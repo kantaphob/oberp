@@ -3,6 +3,7 @@ import { signIn, signOut, getSession } from "next-auth/react";
 export type LoginData = {
             identifier: string;
             password: string;
+            remember?: boolean; // 🌟 Add remember me option
 };
 
 export type AuthResult = {
@@ -17,6 +18,7 @@ export async function login(data: LoginData): Promise<AuthResult> {
                                     identifier: data.identifier,
                                     email: data.identifier,
                                     password: data.password,
+                                    remember: data.remember ? "true" : "false", // 🌟 Pass remember me to backend
                                     redirect: false,
                         });
 

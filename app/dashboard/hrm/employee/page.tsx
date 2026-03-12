@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { 
   Users, Plus, Search, Edit2, Trash2, X, Shield, Mail, CheckCircle, AlertCircle, Building2, ChevronLeft, ChevronRight, Fingerprint, Eye, EyeOff, Wand2
 } from "lucide-react";
+import { useSession } from "next-auth/react";
 
 type UserStatus =
   | "ACTIVE"
@@ -46,6 +47,8 @@ type UserData = {
 };
 
 export default function EmployeeManagementPage() {
+  const { data: session } = useSession();
+  
   const [users, setUsers] = useState<UserData[]>([]);
   const [roles, setRoles] = useState<JobRole[]>([]);
   const [loading, setLoading] = useState(true);
@@ -116,8 +119,9 @@ export default function EmployeeManagementPage() {
   // Check supervisor approval require
   useEffect(() => {
     const selectedRole = roles.find(r => r.id === roleId);
-    // สมมติว่า HR ปัจจุบันมี level 3
-    const currentUserLevel = 10; 
+    
+    // ดึง Level ของผู้ใช้ที่เข้าสู่ระบบตอนนี้
+    const currentUserLevel = session?.user?.level ?? 10; 
     
     // หากสร้างตำแหน่งที่สูงกว่า (level น้อยกว่า) ตัวเอง ต้องขออนุมัติ
     if (selectedRole && selectedRole.level < currentUserLevel && modalMode === "ADD") {
@@ -125,7 +129,7 @@ export default function EmployeeManagementPage() {
     } else {
       setRequiresApproval(false);
     }
-  }, [roleId, roles, modalMode]);
+  }, [roleId, roles, modalMode, session]);
 
   const openAddModal = () => {
     setModalMode("ADD");
