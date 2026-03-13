@@ -3,20 +3,13 @@ import { prisma } from "@/app/lib/prisma";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/lib/authOptions";
 
-export async function GET() {
+export async function PUT(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
-    const departments = await prisma.department.findMany({
-      orderBy: { code: "asc" },
-    });
-    return NextResponse.json(departments);
-  } catch (error) {
-    console.error("Error fetching departments:", error);
-    return NextResponse.json({ error: "Failed to fetch departments" }, { status: 500 });
-  }
-}
-
-export async function POST(request: Request) {
-  try {
+    const p = await params;
+    const { id } = p;
     const body = await request.json();
     const session = await getServerSession(authOptions);
 
@@ -59,10 +52,11 @@ export async function POST(request: Request) {
       // Stage for approval
       await prisma.pendingAction.create({
         data: {
-          action: "CREATE_DEPARTMENT",
-          description: `ขอสร้างแผนกใหม่: ${name} (${code}) โดย ${session.user.username}`,
+          action: "UPDATE_DEPARTMENT",
+          description: `ขอแก้ไขแผนก: ${name} (${code}) โดย ${session.user.username}`,
           payload: body,
           targetModel: "Department",
+          targetId: id,
           requesterId: session.user.id,
           approverId: supervisor.id,
           status: "PENDING"
@@ -75,7 +69,8 @@ export async function POST(request: Request) {
       }, { status: 202 });
     }
 
-    const newDept = await prisma.department.create({
+    const updatedDept = await prisma.department.update({
+      where: { id },
       data: {
         name,
         code,
@@ -84,12 +79,55 @@ export async function POST(request: Request) {
       },
     });
 
-    return NextResponse.json(newDept, { status: 201 });
+    return NextResponse.json(updatedDept);
   } catch (error: any) {
-    console.error("Error creating department:", error);
+    console.error("Error updating department:", error);
+    if (error.code === "P2025") {
+      return NextResponse.json({ error: "Department not found." }, { status: 404 });
+    }
     if (error.code === "P2002") {
       return NextResponse.json({ error: "Department code or name already exists." }, { status: 400 });
     }
-    return NextResponse.json({ error: "Failed to create department" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to update department" }, { status: 500 });
+  }
+}
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session || session.user.level !== 0) {
+      return NextResponse.json({ error: "คุณไม่มีสิทธิ์ลบข้อมูลนี้ (ต้องใช้งานด้วยสิทธิ์ผู้ดูแลระบบสูงสุด)" }, { status: 403 });
+    }
+
+    const p = await params;
+    const { id } = p;
+
+    // Check if in use
+    const rolesCount = await prisma.jobRole.count({
+      where: { departmentId: id }
+    });
+
+    const profilesCount = await prisma.userProfile.count({
+      where: { departmentId: id }
+    });
+
+    if (rolesCount > 0 || profilesCount > 0) {
+      return NextResponse.json({ error: "ไม่สามารถลบได้เนื่องจากมีการใช้งานอยู่ในระบบ (Job Roles หรือ User Profiles)" }, { status: 400 });
+    }
+
+    await prisma.department.delete({
+      where: { id },
+    });
+
+    return NextResponse.json({ message: "ลบข้อมูลสำเร็จ" });
+  } catch (error: any) {
+    console.error("Error deleting department:", error);
+    if (error.code === "P2025") {
+      return NextResponse.json({ error: "ไม่พบข้อมูลที่ต้องการลบ" }, { status: 404 });
+    }
+    return NextResponse.json({ error: "เกิดข้อผิดพลาดในการลบข้อมูล" }, { status: 500 });
   }
 }

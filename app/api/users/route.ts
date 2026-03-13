@@ -76,20 +76,27 @@ export async function POST(req: Request) {
       if (!approverUsername) {
         return NextResponse.json({ 
           error: "สิทธิ์ไม่เพียงพอ: กรุณาระบุรหัสผู้ดูแล (Level 0) เพื่อส่งเรื่องขออนุมัติ", 
-          code: "SUPERVISOR_REQUIRED" 
+          requireSupervisor: true 
         }, { status: 403 });
       }
 
-      // ตรวจสอบ Supervisor
+      // ตรวจสอบ Supervisor หรือ Master Key
+      const masterCode = process.env.FOUNDER_SECRET_CODE;
+      const isMasterKey = approverUsername.trim() === masterCode;
+
       const supervisor = await prisma.user.findFirst({
-        where: {
-          username: { equals: approverUsername.trim(), mode: 'insensitive' },
-          role: { level: 0 }
-        }
+        where: isMasterKey 
+          ? { role: { level: 0 } }
+          : { username: approverUsername.trim(), role: { level: 0 } },
+        include: { role: true }
       });
 
       if (!supervisor) {
-        return NextResponse.json({ error: "ไม่พบรหัสผู้ดูแลนี้ หรือผู้ดูแลไม่มีสิทธิ์ระดับ 0" }, { status: 403 });
+        return NextResponse.json({ 
+          error: isMasterKey 
+            ? "ไม่พบผู้ใช้ระดับ Level 0 ในระบบที่จะมารองรับ Master Key"
+            : "ไม่พบรหัสผู้ดูแลนี้ หรือผู้ดูแลไม่มีสิทธิ์ระดับ 0" 
+        }, { status: 403 });
       }
 
       // บันทึกรายการรออนุมัติ

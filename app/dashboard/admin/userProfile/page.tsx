@@ -90,11 +90,9 @@ export default function UserProfilePage() {
   };
 
   // ── Deletion ────────────────────────────────────────────────────────────────
-  const handleSoftDelete = (status: "RESIGNED" | "TERMINATED") => {
+  const handleSoftDelete = async (status: "RESIGNED" | "TERMINATED") => {
     setPendingStatus(status);
-    openSupervisorModal(async (supervisorUsername) => {
-      await executeDelete(status, supervisorUsername);
-    });
+    await executeDelete(status);
   };
 
   const executeDelete = async (status: string, approverUsername?: string) => {
@@ -112,6 +110,11 @@ export default function UserProfilePage() {
         fetchUsers();
         setDeleteTarget(null);
         setPendingStatus(null);
+        closeSupervisorModal();
+      } else if (res.status === 403 && data.requireSupervisor) {
+        openSupervisorModal(async (username) => {
+          await executeDelete(status, username);
+        });
       } else {
         throw new Error(data.error || "เกิดข้อผิดพลาด");
       }

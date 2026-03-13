@@ -10,74 +10,95 @@ export const authOptions: NextAuthOptions = {
       credentials: {
         identifier: { label: "Username or Email", type: "text" },
         password: { label: "Password", type: "password" },
-        remember: { label: "Remember Me", type: "text" } // 
+        remember: { label: "Remember Me", type: "text" } // 🌟 Add remember me field
       },
       async authorize(credentials) {
-        try {
-          if (!credentials?.identifier || !credentials?.password) {
-            throw new Error("กรุณากรอกข้อมูลให้ครบถ้วน");
-          }
+        if (!credentials?.identifier || !credentials?.password) {
+          throw new Error("กรุณากรอกข้อมูลให้ครบถ้วน");
+        }
 
-          const user = await prisma.user.findFirst({
-            where: {
-              OR: [
-                { username: credentials.identifier },
-                { email: credentials.identifier }
-              ]
+        const user = await prisma.user.findFirst({
+          where: {
+            OR: [
+              { username: credentials.identifier },
+              { email: credentials.identifier }
+            ]
+          },
+          include: {
+            role: {
+              include: {
+                jobLine: true,
+                department: true
+              }
             },
-            include: {
-              role: {
-                include: {
-                  jobLine: true
-                }
-              },
-              profile: {
-                include: {
-                  department: true
-                }
+            profile: {
+              include: {
+                department: true
               }
             }
-          });
-
-          if (!user || user.status !== "ACTIVE") {
-            throw new Error("ไม่พบชื่อผู้ใช้หรือบัญชีไม่พร้อมใช้งาน");
           }
+        });
 
-          const isPasswordValid = await bcrypt.compare(credentials.password, user.passwordHash);
-
-          if (!isPasswordValid) {
-            throw new Error("รหัสผ่านไม่ถูกต้อง");
-          }
-
-          const role = user.role;
-          const profile = user.profile;
-
-          return {
-            id: user.id,
-            username: user.username,
-            level: role?.level ?? 999,
-            roleId: user.roleId,
-            roleName: role?.name || "Unknown Role",
-            firstName: profile?.firstName,
-            lastName: profile?.lastName,
-            isAdmin: role?.level === 0 || role?.name === "Admin" || role?.name === "Founder",
-            sessionMaxAge: 8 * 60 * 60,
-            rememberMe: credentials.remember === "true",
-            departmentId: profile?.departmentId ?? undefined,
-            departmentName: profile?.department?.name ?? undefined,
-            jobLineId: role?.jobLineId ?? undefined,
-            jobLineName: role?.jobLine?.name ?? undefined
-          };
-        } catch (error) {
-          console.error("Authorization error:", error);
-          throw error;
+        if (!user || user.status !== "ACTIVE") {
+          throw new Error("ไม่พบชื่อผู้ใช้หรือบัญชีไม่พร้อมใช้งาน");
         }
+
+        const isPasswordValid = await bcrypt.compare(credentials.password, user.passwordHash);
+
+        if (!isPasswordValid) {
+          throw new Error("");
+        }
+
+        const rememberMe = credentials.remember === "true";
+
+        //  Set session expiration based on remember me preference
+        // For security and daily work schedule, expire at 23:59 of current day
+        let sessionMaxAge: number;
+        if (rememberMe) {
+          // Calculate time until 23:59 today
+          const now = new Date();
+          const endOfDay = new Date(now);
+          endOfDay.setHours(23, 59, 59, 999); // Set to 23:59:59.999 today
+
+          sessionMaxAge = Math.floor((endOfDay.getTime() - now.getTime()) / 1000);
+
+          // If it's already past 23:59, give 1 hour minimum
+          if (sessionMaxAge <= 0) {
+            sessionMaxAge = 60 * 60; // 1 hour minimum
+          }
+
+          // For admin users, limit to shorter sessions even with remember me
+          if (user.role?.level === 0 || user.role?.name === "Admin" || user.role?.name === "Founder") {
+            sessionMaxAge = Math.min(sessionMaxAge, 4 * 60 * 60); // Max 4 hours for admins
+          }
+        } else {
+          sessionMaxAge = 8 * 60 * 60; // 8 hours for normal session
+        }
+
+        return {
+          id: user.id,
+          username: user.username,
+          level: user.role?.level ?? 999,
+          roleId: user.roleId,
+          roleName: user.role?.name || "Unknown Role",
+          firstName: user.profile?.firstName,
+          lastName: user.profile?.lastName,
+          isAdmin: user.role?.level === 0 || user.role?.name === "Admin" || user.role?.name === "Founder",
+          // 🌟 Store session expiration and remember preference
+          sessionMaxAge,
+          rememberMe,
+          // 🌟 Add department and job information
+          departmentId: user.profile?.departmentId ?? user.role?.departmentId ?? undefined,
+          departmentName: user.profile?.department?.name ?? user.role?.department?.name ?? undefined,
+          jobLineId: user.role?.jobLineId ?? undefined,
+          jobLineName: user.role?.jobLine?.name ?? undefined
+        };
       }
     })
   ],
   callbacks: {
     async jwt({ token, user, trigger, session }) {
-      // Handle remember me on sign in
+      //  Handle remember me on sign in
       if (user) {
         token.id = user.id;
         token.username = user.username as string;
@@ -96,7 +117,7 @@ export const authOptions: NextAuthOptions = {
         token.jobLineName = user.jobLineName as string | undefined;
       }
 
-      // Update token when remember me preference changes
+      //  Update token when remember me preference changes
       if (trigger === "update" && session?.rememberMe !== undefined) {
         token.rememberMe = session.rememberMe;
       }
@@ -114,14 +135,13 @@ export const authOptions: NextAuthOptions = {
         session.user.lastName = token.lastName as string | undefined;
         session.user.isAdmin = token.isAdmin as boolean;
         session.user.rememberMe = token.rememberMe as boolean;
-        // 🌟 Add department and job information to session
         session.user.departmentId = token.departmentId as string | undefined;
         session.user.departmentName = token.departmentName as string | undefined;
         session.user.jobLineId = token.jobLineId as string | undefined;
         session.user.jobLineName = token.jobLineName as string | undefined;
       }
 
-      // Set session expiration dynamically
+      //  Set session expiration dynamically
       if (token.sessionMaxAge && typeof token.sessionMaxAge === 'number') {
         session.expires = new Date(Date.now() + token.sessionMaxAge * 1000).toISOString();
       }
@@ -134,7 +154,7 @@ export const authOptions: NextAuthOptions = {
   },
   session: {
     strategy: "jwt",
-    // Default session age (8 hours) - will be adjusted dynamically
+    //  Default session age (8 hours) - will be adjusted dynamically
     maxAge: 8 * 60 * 60, // 8 hours in seconds
   },
   secret: process.env.NEXTAUTH_SECRET || "vPWcL5Fk/7H0RcEI8iRw3cA3SVymPzZdP5InvoC5L10=",

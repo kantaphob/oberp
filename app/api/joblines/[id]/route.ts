@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/lib/authOptions";
 
 export async function PUT(
   request: Request,
@@ -43,15 +45,33 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session || session.user.level !== 0) {
+      return NextResponse.json({ error: "คุณไม่มีสิทธิ์ลบข้อมูลนี้ (ต้องใช้งานด้วยสิทธิ์ผู้ดูแลระบบสูงสุด)" }, { status: 403 });
+    }
+
     const p = await params;
     const { id } = p;
-    await prisma.jobLine.update({
-      where: { id },
-      data: { isActive: false },
+
+    // Check if in use
+    const usageCount = await prisma.jobRole.count({
+      where: { jobLineId: id }
     });
-    return NextResponse.json({ message: "ยกเลิกข้อมูลสำเร็จ (Soft Delete)" });
-  } catch (error) {
-    console.error("Error deleting job line (Soft delete):", error);
-    return NextResponse.json({ error: "Failed to delete job line" }, { status: 500 });
+
+    if (usageCount > 0) {
+      return NextResponse.json({ error: "ไม่สามารถลบได้เนื่องจากมีการใช้งานอยู่ในระบบ (Job Roles)" }, { status: 400 });
+    }
+
+    await prisma.jobLine.delete({
+      where: { id },
+    });
+
+    return NextResponse.json({ message: "ลบข้อมูลสำเร็จ" });
+  } catch (error: any) {
+    console.error("Error deleting job line:", error);
+    if (error.code === "P2025") {
+      return NextResponse.json({ error: "ไม่พบข้อมูลที่ต้องการลบ" }, { status: 404 });
+    }
+    return NextResponse.json({ error: "เกิดข้อผิดพลาดในการลบข้อมูล" }, { status: 500 });
   }
 }

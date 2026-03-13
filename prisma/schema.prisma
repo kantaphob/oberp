@@ -82,83 +82,70 @@ model Permission {
 }
 
 model User {
-  id              String       @id @default(uuid())
-  username        String       @unique
-  passwordHash    String
-  email           String?      @unique
-  status          UserStatus   @default(PENDING)
-  roleId          String
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
-  approvedById    String?
-  createdById     String?
-  profile         UserProfile?
-  
-  hasProfile      Boolean      @default(false) // เมื่อกรอก profile เสร็จจะเป็น true
-  hasProfileFiles Boolean      @default(false) // เมื่อแนบไฟล์เสร็จจะเป็น true
-
-  // 1. ความสัมพันธ์ในฐานะ "ลูกทีม" (ช่าง 1 คน สังกัดได้ 1 ทีมหลัก)
-  teamId String?
-  team   ConstructionTeam? @relation("TeamMembers", fields: [teamId], references: [id])
-
-  // 2. ความสัมพันธ์ในฐานะ "หัวหน้าทีม" (โฟร์แมน 1 คน อาจจะคุมได้หลายทีม)
-  ledTeams ConstructionTeam[] @relation("TeamLeader")
-
-  approvedBy       User?             @relation("UserApprover", fields: [approvedById], references: [id])
-  usersApproved    User[]            @relation("UserApprover")
-  createdBy        User?             @relation("UserCreator", fields: [createdById], references: [id])
-  usersCreated     User[]            @relation("UserCreator")
-  role             JobRole           @relation(fields: [roleId], references: [id])
-  boqsApproved     BOQ[]             @relation("BOQApprover")
-  boqsCreated      BOQ[]             @relation("BOQCreator")
+  id               String             @id @default(uuid())
+  username         String             @unique
+  passwordHash     String
+  email            String?            @unique
+  status           UserStatus         @default(PENDING)
+  roleId           String
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  approvedById     String?
+  createdById      String?
+  hasProfile       Boolean            @default(false)
+  hasProfileFiles  Boolean            @default(false)
+  teamId           String?
+  ledTeams         ConstructionTeam[] @relation("TeamLeader")
+  profile          UserProfile?
+  approvedBy       User?              @relation("UserApprover", fields: [approvedById], references: [id])
+  usersApproved    User[]             @relation("UserApprover")
+  createdBy        User?              @relation("UserCreator", fields: [createdById], references: [id])
+  usersCreated     User[]             @relation("UserCreator")
+  role             JobRole            @relation(fields: [roleId], references: [id])
+  team             ConstructionTeam?  @relation("TeamMembers", fields: [teamId], references: [id])
+  boqsApproved     BOQ[]              @relation("BOQApprover")
+  boqsCreated      BOQ[]              @relation("BOQCreator")
   attendances      Attendance[]
   leaveRequests    LeaveRequest[]
-  projects         Project[]         @relation("ProjectManager")
-  tasks            Task[]            @relation("TaskAssignee")
-  purchaseRequests PurchaseRequest[] @relation("PRRequester")
+  projects         Project[]          @relation("ProjectManager")
+  tasks            Task[]             @relation("TaskAssignee")
+  purchaseRequests PurchaseRequest[]  @relation("PRRequester")
   activityLogs     ActivityLog[]
-
-  requestedActions PendingAction[] @relation("Requester")
-  approvedActions  PendingAction[] @relation("Approver")
+  approvedActions  PendingAction[]    @relation("Approver")
+  requestedActions PendingAction[]    @relation("Requester")
 
   @@map("core_users")
 }
 
 model UserProfile {
-  id              String    @id @default(uuid())
-  userId          String    @unique
-  user            User      @relation(fields: [userId], references: [id], onDelete: Restrict)
-  taxId           String    @unique @db.VarChar(13)
+  id              String             @id @default(uuid())
+  userId          String             @unique
+  taxId           String             @unique @db.VarChar(13)
   firstName       String
   lastName        String
-  telephoneNumber String    @unique @db.VarChar(10)
+  telephoneNumber String             @unique @db.VarChar(10)
   lineId          String?
+  addressDetail   String
+  subdistrictId   Int?
+  districtId      Int?
+  provinceId      Int?
+  zipcode         String?            @db.VarChar(5)
+  departmentId    String
+  roleId          String
+  image           String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  birthDate       DateTime?
   gender          String?
   nationality     String?
-  birthDate       DateTime?
-
-  addressDetail String
-  subdistrictId Int?
-  subdistrict   Subdistrict? @relation(fields: [subdistrictId], references: [id])
-  districtId    Int?
-  district      District?    @relation(fields: [districtId], references: [id])
-  departmentId  String
-  department    Department   @relation(fields: [departmentId], references: [id])
-  provinceId    Int?
-  province      Province?    @relation(fields: [provinceId], references: [id])
-  zipcode       String?      @db.VarChar(5)
-
-  roleId String
-  role   JobRole @relation(fields: [roleId], references: [id])
-
-  image String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  startDate DateTime @default(now())
-
-  file userProfilesFile[]
+  startDate       DateTime           @default(now())
+  department      Department         @relation(fields: [departmentId], references: [id])
+  district        District?          @relation(fields: [districtId], references: [id])
+  province        Province?          @relation(fields: [provinceId], references: [id])
+  role            JobRole            @relation(fields: [roleId], references: [id])
+  subdistrict     Subdistrict?       @relation(fields: [subdistrictId], references: [id])
+  user            User               @relation(fields: [userId], references: [id])
+  file            userProfilesFile[]
 
   @@map("core_user_profiles")
 }
@@ -166,59 +153,48 @@ model UserProfile {
 model userProfilesFile {
   id            String      @id @default(uuid())
   userProfileId String
-  userProfile   UserProfile @relation(fields: [userProfileId], references: [id], onDelete: Cascade) // 🌟 1. เพิ่ม onDelete: Cascade
-
-  file     String
-  fileName String?
-
-  category     String
-  documentType String
-
-  expireDate DateTime?
-
-  isVerified Boolean @default(false)
-  remark     String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  file          String
+  fileName      String?
+  category      String
+  documentType  String
+  expireDate    DateTime?
+  isVerified    Boolean     @default(false)
+  remark        String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  userProfile   UserProfile @relation(fields: [userProfileId], references: [id], onDelete: Cascade)
 
   @@map("core_user_profiles_files")
 }
 
 model ConstructionTeam {
   id          String     @id @default(uuid())
-  name        String // ชื่อทีม เช่น "ทีมโครงสร้าง A"
-  description String? // รายละเอียดเพิ่มเติม (ถ้ามี)
+  name        String
+  description String?
   status      TeamStatus @default(ACTIVE)
+  leaderId    String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  leader      User?      @relation("TeamLeader", fields: [leaderId], references: [id])
+  members     User[]     @relation("TeamMembers")
 
-  // 👑 หัวหน้าทีม (Foreman / Project Engineer)
-  leaderId String?
-  leader   User?   @relation("TeamLeader", fields: [leaderId], references: [id])
-
-  // 👷‍♂️ ลูกทีมทั้งหมด (Workers / Members)
-  members User[] @relation("TeamMembers")
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("core_construction_teams") // ตั้งชื่อตารางใน Database ให้เป็นระเบียบ
+  @@map("core_construction_teams")
 }
 
 model PendingAction {
   id          String   @id @default(uuid())
-  action      String // e.g., "DELETE_USER", "UPDATE_USER", "DELETE_ROLE"
+  action      String
   description String
-  payload     Json // Data to apply
-  targetModel String // e.g., "User", "JobRole"
+  payload     Json
+  targetModel String
   targetId    String?
   requesterId String
-  approverId  String? // The supervisor who authorized the staging
-  status      String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  approverId  String?
+  status      String   @default("PENDING")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-
-  requester User  @relation("Requester", fields: [requesterId], references: [id])
-  approver  User? @relation("Approver", fields: [approverId], references: [id])
+  approver    User?    @relation("Approver", fields: [approverId], references: [id])
+  requester   User     @relation("Requester", fields: [requesterId], references: [id])
 
   @@map("sys_pending_actions")
 }
@@ -485,6 +461,20 @@ model Customer {
   @@map("crm_customers")
 }
 
+model ActivityLog {
+  id          String   @id @default(uuid())
+  action      String
+  description String
+  userId      String?
+  roleName    String?
+  ipAddress   String?
+  status      String   @default("SUCCESS")
+  createdAt   DateTime @default(now())
+  user        User?    @relation(fields: [userId], references: [id])
+
+  @@map("sys_activity_logs")
+}
+
 enum UserStatus {
   ACTIVE
   INACTIVE
@@ -575,21 +565,6 @@ enum CostType {
 }
 
 enum TeamStatus {
-  ACTIVE // ทีมกำลังทำงานอยู่
-  INACTIVE // ยุบทีมชั่วคราว หรือจบโปรเจกต์แล้ว
-}
-
-model ActivityLog {
-  id          String   @id @default(uuid())
-  action      String // e.g., "USER_LOGIN", "CREATE_DOCUMENT"
-  description String
-  userId      String?
-  roleName    String?
-  ipAddress   String?
-  status      String   @default("SUCCESS") // "SUCCESS", "FAILED", "WARNING"
-  createdAt   DateTime @default(now())
-
-  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
-
-  @@map("sys_activity_logs")
+  ACTIVE
+  INACTIVE
 }

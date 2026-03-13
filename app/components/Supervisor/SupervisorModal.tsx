@@ -31,7 +31,7 @@ export const SupervisorModal: React.FC<SupervisorModalProps> = ({
     }
     setError("");
     try {
-      await onConfirm(username.trim().toUpperCase());
+      await onConfirm(username.trim());
     } catch (err: any) {
       setError(err.message || "ไม่พบรหัสผู้ดูแลนี้ในระบบ หรือระดับสิทธิ์ไม่เพียงพอ");
     }
@@ -98,7 +98,7 @@ export const SupervisorModal: React.FC<SupervisorModalProps> = ({
                       placeholder="ระบุรหัสผู้ดูแล"
                       value={username}
                       onChange={(e) => {
-                        setUsername(e.target.value.toUpperCase());
+                        setUsername(e.target.value);
                         setError("");
                       }}
                       className="w-full pl-12 pr-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-orange-500/10 focus:border-orange-500 transition-all font-bold text-slate-700 placeholder:text-slate-300 tracking-widest"

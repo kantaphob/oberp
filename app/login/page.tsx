@@ -356,8 +356,8 @@ export default function LoginPage() {
                   type="button"
                   onClick={() => {
                     setFormData({
-                      identifier: "FND291295",
-                      password: "ohmspkNtr",
+                      identifier: "FND291202",
+                      password: "Roots",
                     });
                     setRememberMe(true); // 🌟 Enable remember me for demo
                   }}
@@ -382,8 +382,8 @@ export default function LoginPage() {
                   type="button"
                   onClick={() => {
                     setFormData({
-                      identifier: "JUN26001",
-                      password: "1234",
+                      identifier: "ADM26001",
+                      password: "Roots",
                     });
                     setRememberMe(false); //
                   }}

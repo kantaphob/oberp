@@ -21,6 +21,8 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { useTableControls } from "@/app/hooks/useTableControls";
 import { TableControls } from "@/app/components/Dashboard/TableControls";
+import { SupervisorModal } from "@/app/components/Supervisor/SupervisorModal";
+import { useSupervisor } from "@/app/hooks/useSupervisor";
 
 type Department = { id: string; code: string; name: string };
 type JobLine = { id: string; code: string; name: string };
@@ -121,6 +123,27 @@ const LEVEL_CONFIG: Record<
     bar: "bg-slate-400",
     ring: "ring-slate-200",
   },
+  "11": {
+    label: "Intern",
+    color: "text-slate-600",
+    bg: "bg-slate-100",
+    bar: "bg-slate-400",
+    ring: "ring-slate-200",
+  },
+  "12": {
+    label: "Intern",
+    color: "text-slate-600",
+    bg: "bg-slate-100",
+    bar: "bg-slate-400",
+    ring: "ring-slate-200",
+  },
+  "13": {
+    label: "Intern",
+    color: "text-slate-600",
+    bg: "bg-slate-100",
+    bar: "bg-slate-400",
+    ring: "ring-slate-200",
+  },
 };
 const getLevelCfg = (lv: number) =>
   LEVEL_CONFIG[String(lv)] ?? LEVEL_CONFIG["10"];
@@ -203,17 +226,25 @@ export default function JobRolePage() {
   const [error, setError] = useState("");
   const [filterLevel, setFilterLevel] = useState<string>("all");
 
+  const {
+    isOpen: isSupervisorOpen,
+    loading: supervisorLoading,
+    openModal: openSupervisorModal,
+    closeModal: closeSupervisorModal,
+  } = useSupervisor();
+
   const { paged, tableProps } = useTableControls<JobRole>(
     jobRoles
-      .filter(r => r.isActive !== false)
-      .filter(r => filterLevel === "all" || String(r.level) === filterLevel)
+      .filter((r) => r.isActive !== false)
+      .filter((r) => filterLevel === "all" || String(r.level) === filterLevel)
       .sort((a, b) => a.level - b.level || a.name.localeCompare(b.name)),
     {
-      filterFn: (role, term) => [
-        role.name, role.prefix, role.department?.name ?? ""
-      ].some(v => v.toLowerCase().includes(term)),
+      filterFn: (role, term) =>
+        [role.name, role.prefix, role.department?.name ?? ""].some((v) =>
+          v.toLowerCase().includes(term),
+        ),
       defaultPerPage: 15,
-    }
+    },
   );
 
   const [formData, setFormData] = useState({
@@ -280,8 +311,8 @@ export default function JobRolePage() {
     setIsModalOpen(true);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e: React.FormEvent, approverUsername?: string) => {
+    if (e) e.preventDefault();
     if (formData.id && formData.parentRoleId === formData.id) {
       setError("ไม่สามารถเลือกหัวหน้างานเป็นตัวเองได้");
       setSaving(false);
@@ -305,15 +336,27 @@ export default function JobRolePage() {
             jobLineId: formData.jobLineId || null,
             parentRoleId: formData.parentRoleId || null,
             isActive: formData.isActive,
+            approverUsername, // ส่งรหัสผู้ดูแลไปด้วยถ้ามี
           }),
         },
       );
+      
+      const data = await res.json();
+
       if (!res.ok) {
-        const d = await res.json();
-        throw new Error(d.error || "เกิดข้อผิดพลาด");
+        // ถ้าต้องการการอนุมัติ ให้เปิด Modal
+        if (res.status === 403 && data.requireSupervisor) {
+          openSupervisorModal(async (username) => {
+            await handleSubmit(null as any, username);
+          });
+          return;
+        }
+        throw new Error(data.error || "เกิดข้อผิดพลาด");
       }
+
       await fetchData();
       setIsModalOpen(false);
+      closeSupervisorModal();
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -425,10 +468,17 @@ export default function JobRolePage() {
           {/* Toolbar */}
           <div className="px-5 py-3.5 border-b border-slate-100 flex flex-col xl:flex-row gap-4 justify-between bg-slate-50/60 items-center">
             <div className="flex-1 w-full">
-              <TableControls table={tableProps} entityLabel="ตำแหน่ง" searchPlaceholder="ค้นหาตำแหน่ง, ตัวย่อ, แผนก..." />
+              <TableControls
+                table={tableProps}
+                entityLabel="ตำแหน่ง"
+                searchPlaceholder="ค้นหาตำแหน่ง, ตัวย่อ, แผนก..."
+              />
             </div>
 
-            <div className="flex items-center gap-3 shrink-0 self-end xl:self-center">
+
+          </div>
+<div className="flex justify-end">
+              <div className="flex items-center gap-3 shrink-0 self-end xl:self-center">
               {/* Level filter chips */}
               <div className="flex gap-1.5 flex-wrap justify-end">
                 {[
@@ -444,6 +494,10 @@ export default function JobRolePage() {
                   "8",
                   "9",
                   "10",
+                  "11",
+                  "12",
+                  "13",
+                  "14",
                 ].map((lv) => (
                   <button
                     key={lv}
@@ -469,8 +523,7 @@ export default function JobRolePage() {
                 />
               </button>
             </div>
-          </div>
-
+</div>
           {/* Table */}
           <div className="overflow-auto flex-1 custom-scrollbar">
             <table className="w-full text-left border-collapse min-w-[960px]">
@@ -520,136 +573,135 @@ export default function JobRolePage() {
                     </td>
                   </tr>
                 ) : (
-                  paged
-                    .map((role, idx) => {
-                      const cfg = getLevelCfg(role.level);
-                      const fill = Math.max(
-                        5,
-                        Math.round(((10 - role.level) / 10) * 100),
-                      );
-                      return (
-                        <motion.tr
-                          key={role.id}
-                          initial={{ opacity: 0, x: -8 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: idx * 0.03, duration: 0.25 }}
-                          className="row-hover border-b border-slate-50 transition-colors group"
-                        >
-                          {/* Level */}
-                          <td className="py-3.5 px-5">
-                            <div className="flex items-center gap-2">
-                              <div
-                                className={`w-8 h-8 rounded-lg flex items-center justify-center text-[11px] font-extrabold ring-2 ${cfg.bg} ${cfg.color} ${cfg.ring} shrink-0`}
-                              >
-                                {role.level}
+                  paged.map((role, idx) => {
+                    const cfg = getLevelCfg(role.level);
+                    const fill = Math.max(
+                      5,
+                      Math.round(((10 - role.level) / 10) * 100),
+                    );
+                    return (
+                      <motion.tr
+                        key={role.id}
+                        initial={{ opacity: 0, x: -8 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: idx * 0.03, duration: 0.25 }}
+                        className="row-hover border-b border-slate-50 transition-colors group"
+                      >
+                        {/* Level */}
+                        <td className="py-3.5 px-5">
+                          <div className="flex items-center gap-2">
+                            <div
+                              className={`w-8 h-8 rounded-lg flex items-center justify-center text-[11px] font-extrabold ring-2 ${cfg.bg} ${cfg.color} ${cfg.ring} shrink-0`}
+                            >
+                              {role.level}
+                            </div>
+                            <div className="flex-1 min-w-[56px]">
+                              <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full ${cfg.bar}`}
+                                  style={{ width: `${fill}%` }}
+                                />
                               </div>
-                              <div className="flex-1 min-w-[56px]">
-                                <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                  <div
-                                    className={`h-full rounded-full ${cfg.bar}`}
-                                    style={{ width: `${fill}%` }}
-                                  />
-                                </div>
-                                <span
-                                  className={`text-[10px] font-semibold mt-0.5 block ${cfg.color}`}
-                                >
-                                  {cfg.label}
+                              <span
+                                className={`text-[10px] font-semibold mt-0.5 block ${cfg.color}`}
+                              >
+                                {cfg.label}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Name */}
+                        <td className="py-3.5 px-5">
+                          <p className="text-[13px] font-semibold text-slate-800">
+                            {role.name}
+                          </p>
+                          {role.description && (
+                            <p className="text-[11px] text-slate-400 mt-0.5 line-clamp-1">
+                              {role.description}
+                            </p>
+                          )}
+                        </td>
+
+                        {/* Prefix */}
+                        <td className="py-3.5 px-5">
+                          <span className="level-pill inline-flex items-center px-2.5 py-1 rounded-lg font-mono text-[12px] font-bold text-slate-700 tracking-widest">
+                            {role.prefix}
+                          </span>
+                        </td>
+
+                        {/* Dept/Line */}
+                        <td className="py-3.5 px-5">
+                          {role.department ? (
+                            <div className="space-y-0.5">
+                              <div className="flex items-center gap-1.5">
+                                <Building2
+                                  size={12}
+                                  className="text-indigo-400 shrink-0"
+                                />
+                                <span className="text-[12px] font-semibold text-slate-700">
+                                  {role.department.name}
                                 </span>
+                              </div>
+                              {role.jobLine && (
+                                <div className="flex items-center gap-1.5 pl-0.5">
+                                  <ChevronRight
+                                    size={11}
+                                    className="text-slate-300 shrink-0"
+                                  />
+                                  <span className="text-[11px] text-slate-400">
+                                    {role.jobLine.name}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-[11px] text-slate-300 italic">
+                              ไม่ระบุสังกัด
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Reports To */}
+                        <td className="py-3.5 px-5">
+                          {role.parentRole ? (
+                            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl level-pill">
+                              <GitBranch
+                                size={12}
+                                className="text-amber-500 shrink-0"
+                              />
+                              <div>
+                                <span className="text-[12px] font-bold text-amber-700 tracking-wide">
+                                  {role.parentRole.prefix}
+                                </span>
+                                <p className="text-[10px] text-slate-400 leading-none mt-0.5">
+                                  {role.parentRole.name}
+                                </p>
                               </div>
                             </div>
-                          </td>
-
-                          {/* Name */}
-                          <td className="py-3.5 px-5">
-                            <p className="text-[13px] font-semibold text-slate-800">
-                              {role.name}
-                            </p>
-                            {role.description && (
-                              <p className="text-[11px] text-slate-400 mt-0.5 line-clamp-1">
-                                {role.description}
-                              </p>
-                            )}
-                          </td>
-
-                          {/* Prefix */}
-                          <td className="py-3.5 px-5">
-                            <span className="level-pill inline-flex items-center px-2.5 py-1 rounded-lg font-mono text-[12px] font-bold text-slate-700 tracking-widest">
-                              {role.prefix}
-                            </span>
-                          </td>
-
-                          {/* Dept/Line */}
-                          <td className="py-3.5 px-5">
-                            {role.department ? (
-                              <div className="space-y-0.5">
-                                <div className="flex items-center gap-1.5">
-                                  <Building2
-                                    size={12}
-                                    className="text-indigo-400 shrink-0"
-                                  />
-                                  <span className="text-[12px] font-semibold text-slate-700">
-                                    {role.department.name}
-                                  </span>
-                                </div>
-                                {role.jobLine && (
-                                  <div className="flex items-center gap-1.5 pl-0.5">
-                                    <ChevronRight
-                                      size={11}
-                                      className="text-slate-300 shrink-0"
-                                    />
-                                    <span className="text-[11px] text-slate-400">
-                                      {role.jobLine.name}
-                                    </span>
-                                  </div>
-                                )}
-                              </div>
-                            ) : (
-                              <span className="text-[11px] text-slate-300 italic">
-                                ไม่ระบุสังกัด
+                          ) : (
+                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-100">
+                              <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                              <span className="text-[11px] text-slate-400 font-medium">
+                                สูงสุด / Top Level
                               </span>
-                            )}
-                          </td>
+                            </div>
+                          )}
+                        </td>
 
-                          {/* Reports To */}
-                          <td className="py-3.5 px-5">
-                            {role.parentRole ? (
-                              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl level-pill">
-                                <GitBranch
-                                  size={12}
-                                  className="text-amber-500 shrink-0"
-                                />
-                                <div>
-                                  <span className="text-[12px] font-bold text-amber-700 tracking-wide">
-                                    {role.parentRole.prefix}
-                                  </span>
-                                  <p className="text-[10px] text-slate-400 leading-none mt-0.5">
-                                    {role.parentRole.name}
-                                  </p>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-100">
-                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                                <span className="text-[11px] text-slate-400 font-medium">
-                                  สูงสุด / Top Level
-                                </span>
-                              </div>
-                            )}
-                          </td>
-
-                          {/* Actions */}
-                          <td className="py-3.5 px-5 text-right">
-                            <button
-                              onClick={() => openModal(role)}
-                              className="opacity-0 group-hover:opacity-100 p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
-                              title="แก้ไข"
-                            >
-                              <Edit size={15} />
-                            </button>
-                          </td>
-                        </motion.tr>
-                      );
-                    })
+                        {/* Actions */}
+                        <td className="py-3.5 px-5 text-right">
+                          <button
+                            onClick={() => openModal(role)}
+                            className="opacity-0 group-hover:opacity-100 p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                            title="แก้ไข"
+                          >
+                            <Edit size={15} />
+                          </button>
+                        </td>
+                      </motion.tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -657,7 +709,11 @@ export default function JobRolePage() {
 
           {/* Footer */}
           <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/40">
-            <TableControls table={tableProps} entityLabel="ตำแหน่ง" searchPlaceholder="" />
+            <TableControls
+              table={tableProps}
+              entityLabel="ตำแหน่ง"
+              searchPlaceholder=""
+            />
           </div>
         </div>
       </div>
@@ -1002,6 +1058,17 @@ export default function JobRolePage() {
           </>
         )}
       </AnimatePresence>
+
+      <SupervisorModal
+        isOpen={isSupervisorOpen}
+        onClose={closeSupervisorModal}
+        onConfirm={async (username) => {
+          // จะถูกเรียกผ่าน openSupervisorModal ใน handleSubmit
+        }}
+        loading={saving || supervisorLoading}
+        title="อนุมัติการแก้ไขตำแหน่งงาน"
+        description="กรุณาระบุรหัสผู้ดูแล Level 0 หรือ Master Key เพื่อยืนยันการทำรายการ"
+      />
     </>
   );
 }

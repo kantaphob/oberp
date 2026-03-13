@@ -18,6 +18,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { useToast } from "@/app/hooks/useToast";
 import { useUserForm } from "@/app/hooks/useUserForm";
 import { useSupervisor } from "@/app/hooks/useSupervisor";
@@ -41,9 +42,11 @@ interface AdminUserFormProps {
 
 export function AdminUserForm({ initialData, isEdit = false, children }: AdminUserFormProps) {
   const router = useRouter();
+  const { data: session } = useSession();
   const { notify } = useToast();
   const { isOpen, loading: supervisorLoading, openModal, closeModal, handleConfirm } = useSupervisor();
 
+  const currentUserLevel = session?.user?.level;
   const [savingLoading, setSavingLoading] = useState(false);
   const [departments, setDepartments]       = useState<Department[]>([]);
   const [roles, setRoles]                   = useState<JobRole[]>([]);
@@ -104,7 +107,7 @@ export function AdminUserForm({ initialData, isEdit = false, children }: AdminUs
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isEdit && !isDirty) { notify.info("ไม่มีการเปลี่ยนแปลงข้อมูลที่ต้องบันทึก"); return; }
-    openModal(async (supervisorUsername) => { saveData(supervisorUsername); });
+    await saveData();
   };
 
   const handleCancel = () => {
@@ -154,8 +157,13 @@ export function AdminUserForm({ initialData, isEdit = false, children }: AdminUs
       const data = await res.json();
       if (res.ok) {
         notify.onSaveSuccess(data.message || (isEdit ? "อัปเดตสำเร็จ" : "บันทึกข้อมูลและสร้างพนักงานสำเร็จ"));
+        closeModal();
         router.push("/dashboard/admin/userProfile");
         router.refresh();
+      } else if (res.status === 403 && data.requireSupervisor) {
+        openModal(async (username) => {
+          await saveData(username);
+        });
       } else throw new Error(data.error || "เกิดข้อผิดพลาด");
     } catch (err: any) {
       notify.onApiError(err, isEdit ? "แก้ไขข้อมูล" : "สร้างพนักงาน");
@@ -204,7 +212,7 @@ export function AdminUserForm({ initialData, isEdit = false, children }: AdminUs
                 roles={roles}
                 departments={departments}
                 onChange={handleFormChange}
-                readOnly={isEdit}
+                readOnly={isEdit && currentUserLevel !== 0}
               />
 
               {/* 2. Account Card */}
