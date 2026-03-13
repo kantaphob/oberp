@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { UserX, LogOut, ShieldAlert, X, Loader2, CheckCircle2, UserMinus } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button } from "../ui/button";
 
 interface SoftDeleteModalProps {
   isOpen: boolean;

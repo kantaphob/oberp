@@ -29,9 +29,18 @@ export function TableControls({
   className = "",
 }: TableControlsProps) {
   const {
-    search, perPage, page, totalItems, totalPages,
-    startIndex, endIndex,
-    setSearch, setPerPage, setPage, prevPage, nextPage,
+    search,
+    perPage,
+    page,
+    totalItems,
+    totalPages,
+    startIndex,
+    endIndex,
+    setSearch,
+    setPerPage,
+    setPage,
+    prevPage,
+    nextPage,
   } = table;
 
   /* ── Compact page buttons (max 5 visible) ── */
@@ -39,20 +48,20 @@ export function TableControls({
 
   return (
     <div className={`tc-wrapper ${className}`}>
-
       {/* ── Top Row: Show Entries + Search + Actions ── */}
       <div className="tc-top-row">
-
         {/* Show [N] Entries */}
         <div className="tc-show-entries">
           <span className="tc-soft-label">แสดง</span>
           <select
             className="tc-select"
             value={perPage}
-            onChange={e => setPerPage(Number(e.target.value))}
+            onChange={(e) => setPerPage(Number(e.target.value))}
           >
-            {pageSizeOptions.map(n => (
-              <option key={n} value={n}>{n}</option>
+            {pageSizeOptions.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
             ))}
           </select>
           <span className="tc-soft-label">{entityLabel}</span>
@@ -70,7 +79,7 @@ export function TableControls({
               className="tc-search-input"
               placeholder={searchPlaceholder}
               value={search}
-              onChange={e => setSearch(e.target.value)}
+              onChange={(e) => setSearch(e.target.value)}
             />
           </div>
         </div>
@@ -78,7 +87,6 @@ export function TableControls({
 
       {/* ── Bottom Row: Info + Pagination ── */}
       <div className="tc-bottom-row">
-
         {/* Showing X to Y of Z entries */}
         <span className="tc-info">
           {totalItems === 0 ? (
@@ -104,7 +112,9 @@ export function TableControls({
 
           {pageButtons.map((btn, i) =>
             btn === "..." ? (
-              <span key={`ellipsis-${i}`} className="tc-pg-ellipsis">…</span>
+              <span key={`ellipsis-${i}`} className="tc-pg-ellipsis">
+                …
+              </span>
             ) : (
               <button
                 key={btn}
@@ -113,7 +123,7 @@ export function TableControls({
               >
                 {btn}
               </button>
-            )
+            ),
           )}
 
           <button
@@ -135,7 +145,11 @@ function buildPageButtons(current: number, total: number): (number | "...")[] {
   if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
   const pages: (number | "...")[] = [1];
   if (current > 3) pages.push("...");
-  for (let p = Math.max(2, current - 1); p <= Math.min(total - 1, current + 1); p++) {
+  for (
+    let p = Math.max(2, current - 1);
+    p <= Math.min(total - 1, current + 1);
+    p++
+  ) {
     pages.push(p);
   }
   if (current < total - 2) pages.push("...");
