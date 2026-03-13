@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { useToast } from "../hooks/useToast";
 import { useLeads } from "../hooks/useLeads";
 
-import { ServiceType, SERVICE_CONFIG } from "../lib/services"
+import { ServiceType, SERVICE_CONFIG } from "../lib/services";
 // --- Hardcoded Enums ---
 const CUSTOMER_TYPE = {
   INDIVIDUAL: "INDIVIDUAL",

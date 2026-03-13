@@ -317,7 +317,7 @@ export const MENU_DATA: MenuGroup[] = [
         title: "ฝ่ายขาย & ลูกค้า",
         icon: "TrendingUp",
         subMenus: [
-          { name: "Lead Management", href: "/" },
+          { name: "Lead Management", href: "/dashboard/fs/lead" },
           { name: "Quotation & Contract", href: "/" },
           { name: "Customer Follow-up", href: "/" },
         ],
@@ -348,8 +348,9 @@ export const MENU_DATA: MenuGroup[] = [
             name: "Construction Team",
             href: "/dashboard/hrm/constructionTeam",
           },
-          { name: "Time Attendance", href: "/" },
-          { name: "Payroll & Wages", href: "/" },
+          { name: "Time Attendance", href: "/dashboard/hrm/timeAttendance" },
+          { name: "Payroll & Wages", href: "/dashboard/hrm/payroll" },
+          { name: "Document", href: "/dashboard/hrm/document" },
         ],
       },
       {

@@ -9,3 +9,5 @@ export const prisma = new PrismaClient({
 console.log("Prisma Models Initialized:", Object.keys(prisma).filter(k => !k.startsWith("_")));
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+
+export default prisma;

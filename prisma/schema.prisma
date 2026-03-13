@@ -82,37 +82,55 @@ model Permission {
 }
 
 model User {
-  id               String             @id @default(uuid())
-  username         String             @unique
-  passwordHash     String
-  email            String?            @unique
-  status           UserStatus         @default(PENDING)
-  roleId           String
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
-  approvedById     String?
-  createdById      String?
-  hasProfile       Boolean            @default(false)
-  hasProfileFiles  Boolean            @default(false)
-  teamId           String?
-  ledTeams         ConstructionTeam[] @relation("TeamLeader")
-  profile          UserProfile?
-  approvedBy       User?              @relation("UserApprover", fields: [approvedById], references: [id])
-  usersApproved    User[]             @relation("UserApprover")
-  createdBy        User?              @relation("UserCreator", fields: [createdById], references: [id])
-  usersCreated     User[]             @relation("UserCreator")
-  role             JobRole            @relation(fields: [roleId], references: [id])
-  team             ConstructionTeam?  @relation("TeamMembers", fields: [teamId], references: [id])
-  boqsApproved     BOQ[]              @relation("BOQApprover")
-  boqsCreated      BOQ[]              @relation("BOQCreator")
-  attendances      Attendance[]
-  leaveRequests    LeaveRequest[]
-  projects         Project[]          @relation("ProjectManager")
-  tasks            Task[]             @relation("TaskAssignee")
-  purchaseRequests PurchaseRequest[]  @relation("PRRequester")
+  id              String     @id @default(uuid())
+  username        String     @unique
+  passwordHash    String
+  email           String?    @unique
+  status          UserStatus @default(PENDING)
+  roleId          String
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  approvedById    String?
+  createdById     String?
+  hasProfile      Boolean    @default(false)
+  hasProfileFiles Boolean    @default(false)
+
+  teamId   String?
+  team     ConstructionTeam?  @relation("TeamMembers", fields: [teamId], references: [id])
+  ledTeams ConstructionTeam[] @relation("TeamLeader")
+
+  profile UserProfile?
+  role    JobRole      @relation(fields: [roleId], references: [id])
+
+  approvedBy    User?  @relation("UserApprover", fields: [approvedById], references: [id])
+  usersApproved User[] @relation("UserApprover")
+  createdBy     User?  @relation("UserCreator", fields: [createdById], references: [id])
+  usersCreated  User[] @relation("UserCreator")
+
+  boqsApproved     BOQ[]             @relation("BOQApprover")
+  boqsCreated      BOQ[]             @relation("BOQCreator")
+  projects         Project[]         @relation("ProjectManager")
+  tasks            Task[]            @relation("TaskAssignee")
+  purchaseRequests PurchaseRequest[] @relation("PRRequester")
   activityLogs     ActivityLog[]
-  approvedActions  PendingAction[]    @relation("Approver")
-  requestedActions PendingAction[]    @relation("Requester")
+  approvedActions  PendingAction[]   @relation("Approver")
+  requestedActions PendingAction[]   @relation("Requester")
+
+  // 🌟 ส่วนที่ปรับปรุงเรื่องกะงานและเวลาเข้าออก
+  workShiftId String?
+  workShift   WorkShift? @relation("UserShift", fields: [workShiftId], references: [id])
+
+  leaveRequests LeaveRequest[] @relation("UserLeaveRequests")
+
+  attendances       Attendance[] @relation("UserAttendance")
+  recordedForOthers Attendance[] @relation("RecordedBy")
+
+  workSchedules   WorkSchedule[]
+  otRequests      OtRequest[]      @relation("UserOTRequests")
+  approvedOTs     OtRequest[]      @relation("OTApprover")
+  hrDocuments     hrDocument[]     @relation("UserDocuments")
+  hrDocumentFiles hrDocumentFile[] @relation("UserFiles")
+  uploadedFiles   hrDocumentFile[] @relation("DocumentUploader")
 
   @@map("core_users")
 }
@@ -288,37 +306,6 @@ model MaterialCatalog {
   @@map("est_material_catalogs")
 }
 
-model Attendance {
-  id          String         @id @default(uuid())
-  userId      String
-  date        DateTime       @db.Date
-  checkIn     DateTime?
-  checkOut    DateTime?
-  type        AttendanceType @default(PRESENT)
-  locationLat Float?
-  locationLng Float?
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
-  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("hrm_attendances")
-}
-
-model LeaveRequest {
-  id        String      @id @default(uuid())
-  userId    String
-  startDate DateTime    @db.Date
-  endDate   DateTime    @db.Date
-  reason    String
-  status    LeaveStatus @default(PENDING)
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
-  type      LeaveType   @default(PERSONAL_LEAVE)
-  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("hrm_leave_requests")
-}
-
 model Project {
   id               String            @id @default(uuid())
   code             String            @unique
@@ -475,6 +462,188 @@ model ActivityLog {
   @@map("sys_activity_logs")
 }
 
+// 🌟 ตารางการลางาน (เปลี่ยนชื่อเป็น PascalCase ตามมาตรฐาน)
+model LeaveRequest {
+  id        String      @id @default(cuid())
+  userId    String
+  startDate DateTime    @db.Date
+  endDate   DateTime    @db.Date
+  reason    String      @db.Text
+  status    LeaveStatus @default(PENDING)
+  type      LeaveType   @default(PERSONAL_LEAVE)
+
+  documentUrl String?
+  approverId  String?
+  approvedAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation("UserLeaveRequests", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("core_leave_requests")
+}
+
+// 🌟 ตารางตั้งค่า "กะการทำงาน"
+model WorkShift {
+  id             String         @id @default(uuid())
+  name           String         @unique
+  code           String         @unique
+  startTime      String
+  endTime        String
+  lateThreshold  Int            @default(15)
+  otStartTime    String?
+  isActive       Boolean        @default(true)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  attendanceType AttendanceType @default(ONSITE)
+
+  users        User[]         @relation("UserShift")
+  attendances  Attendance[]
+  WorkSchedule WorkSchedule[]
+
+  @@map("core_work_shifts")
+}
+
+// 🌟 ตารางบันทึกเวลาเข้า-ออก
+model Attendance {
+  id              String           @id @default(uuid())
+  date            DateTime         @db.Date
+  checkInTime     DateTime?
+  checkOutTime    DateTime?
+  checkInLocation String?
+  checkInPhotoUrl String?
+  status          AttendanceStatus @default(ABSENT)
+  type            AttendanceType   @default(PRESENT)
+  lateMinutes     Int              @default(0)
+  otHours         Float            @default(0)
+  isManualEdit    Boolean          @default(false)
+
+  userId String
+  user   User   @relation("UserAttendance", fields: [userId], references: [id])
+
+  shiftId String
+  shift   WorkShift @relation(fields: [shiftId], references: [id])
+
+  recordedById String?
+  recordedBy   User?   @relation("RecordedBy", fields: [recordedById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, date])
+  @@map("core_attendances")
+}
+
+model WorkSchedule {
+  id      String   @id @default(uuid())
+  userId  String
+  shiftId String
+  date    DateTime @db.Date
+  status  String   @default("PLANNED") // PLANNED, COMPLETED, CANCELLED
+
+  user  User      @relation(fields: [userId], references: [id])
+  shift WorkShift @relation(fields: [shiftId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, date])
+  @@map("core_work_schedules")
+}
+
+model OtRequest {
+  id           String      @id @default(uuid())
+  userId       String
+  date         DateTime    @db.Date
+  plannedHours Float
+  actualHours  Float?
+  reason       String
+  status       LeaveStatus @default(PENDING)
+  approverId   String?
+
+  user     User  @relation("UserOTRequests", fields: [userId], references: [id])
+  approver User? @relation("OTApprover", fields: [approverId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("core_ot_requests")
+}
+
+model hrDocument {
+  id          String      @id @default(uuid())
+  name        String // ชื่อเอกสาร เช่น "ใบรับรองแพทย์", "ใบ กว."
+  description String? // รายละเอียดเพิ่มเติม
+  type        hrDocType   @default(PERSONAL)
+  status      hrDocStatus @default(ACTIVE)
+
+  // 🔗 ความสัมพันธ์: เอกสารนี้เป็นของใคร? (ถ้าเป็นเอกสารบริษัท ให้ใส่เป็น null ได้)
+  userId String?
+  user   User?   @relation("UserDocuments", fields: [userId], references: [id], onDelete: Cascade)
+
+  // 🔗 ความสัมพันธ์: 1 แฟ้ม มีไฟล์แนบได้หลายไฟล์
+  files hrDocumentFile[]
+
+  sortOrder Int @default(0) // 🌟 ลำดับการแสดงผล
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("hrm_documents")
+}
+
+// 🌟 2. ตารางย่อย: ไฟล์เอกสารที่อัปโหลด (เก็บ URL และวันหมดอายุ)
+model hrDocumentFile {
+  id String @id @default(uuid())
+
+  // 🔗 ความสัมพันธ์: ไฟล์นี้อยู่ในแฟ้มเอกสารไหน?
+  documentId String
+  document   hrDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  fileUrl    String    @map("file") // ลิงก์ไฟล์ที่ได้จากระบบอัปโหลด
+  fileName   String? // ชื่อไฟล์ต้นฉบับ
+  category   String? // หมวดหมู่ย่อย
+  expireDate DateTime? @db.Date // 🌟 สำคัญมาก: เอาไว้แจ้งเตือนเอกสารหมดอายุ
+
+  isVerified Boolean @default(false) // HR ตรวจสอบความถูกต้องแล้วหรือยัง?
+  remark     String?
+
+  // 🔗 ใครเป็นคนกดอัปโหลดไฟล์นี้เข้าระบบ? (เผื่อตามตัวคนอัปโหลดผิด)
+  uploadedById String?
+  uploadedBy   User?   @relation("DocumentUploader", fields: [uploadedById], references: [id])
+
+  sortOrder Int @default(0) // 🌟 ลำดับการแสดงผลภายในแฟ้ม
+
+  // 🔗 ไฟล์นี้เป็นของพนักงานคนไหน? (ส่วนใหญ่จะตรงกับเจ้าของ documentId)
+  userId String?
+  user   User?   @relation("UserFiles", fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("hrm_document_files")
+}
+
+// 🌟 Enums สำหรับควบคุมข้อมูลให้อยู่ในกรอบ
+enum hrDocType {
+  PERSONAL // เอกสารส่วนตัว (บัตรปชช, ทะเบียนบ้าน)
+  CERTIFICATION // ใบรับรอง/ใบอนุญาต (ใบ กว., จป., Work Permit)
+  MEDICAL // ใบรับรองแพทย์ / ประกันสังคม
+  CONTRACT // สัญญาจ้างงาน
+  COMPANY_POLICY // เอกสารนโยบายบริษัท (ส่วนกลาง)
+}
+
+enum hrDocStatus {
+  ACTIVE
+  ARCHIVED
+  EXPIRED
+}
+
+// ==========================================
+// ENUMS
+// ==========================================
+
 enum UserStatus {
   ACTIVE
   INACTIVE
@@ -484,6 +653,14 @@ enum UserStatus {
   TERMINATED
   LOCKED
   PENDING
+}
+
+enum AttendanceStatus {
+  PRESENT
+  LATE
+  ABSENT
+  ON_LEAVE
+  HOLIDAY
 }
 
 enum AttendanceType {
