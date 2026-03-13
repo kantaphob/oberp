@@ -12,13 +12,14 @@ export async function POST(req: NextRequest) {
 
     const formData = await req.formData();
     const file = formData.get("file") as File;
+    const folder = formData.get("folder") as string || "documents";
 
     if (!file) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
 
-    // Default folder to 'hr-documents'
-    const url = await uploadFileToServer(file, "hr-documents");
+    // Use the provided folder or default to 'documents'
+    const url = await uploadFileToServer(file, folder);
 
     return NextResponse.json({ success: true, url });
   } catch (error: any) {

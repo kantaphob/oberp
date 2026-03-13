@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/lib/authOptions";
 import { prisma } from "@/app/lib/prisma";
+import { deleteFileFromServer } from "@/app/lib/uploadHelper";
 
 /**
  * POST: Upload a file record and link it to a document category
@@ -101,6 +102,11 @@ export async function DELETE(req: NextRequest) {
     }
 
     await prisma.hrDocumentFile.delete({ where: { id } });
+
+    // 🗑️ ลบไฟล์ออกจาก Storage
+    if (file.fileUrl) {
+      await deleteFileFromServer(file.fileUrl);
+    }
 
     return NextResponse.json({ success: true, message: "File deleted successfully" });
   } catch (error: any) {

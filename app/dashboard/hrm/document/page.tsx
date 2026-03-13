@@ -189,33 +189,48 @@ export default function DocumentCenterPage() {
 
   const handleDelete = async () => {
     if (!deleteConfig) return;
-    const userLevel = session?.user?.level ?? 5;
 
-    // Check if supervisor auth is needed (Level > 0)
-    if (userLevel > 0) {
-      setShowSupervisorModal(true);
-      return;
+    // 1. Check if category is "In Use" (has files)
+    if (deleteConfig.type === "category") {
+      const doc = documents.find((d) => d.id === deleteConfig.id);
+      if (doc && (doc._count?.files || 0) > 0) {
+        notify.warning(
+          "ไม่สามารถลบได้",
+          "หมวดหมู่นี้ยังมีไฟล์อยู่ภายใน โปรดลบไฟล์ออกทั้งหมดก่อน",
+        );
+        setDeleteConfig(null);
+        return;
+      }
     }
 
-    await proceedDelete();
+    const userLevel = session?.user?.level ?? 5;
+
+    // 2. Check if supervisor auth is needed
+    // If user is already Level 0, proceed directly with confirmation
+    if (userLevel === 0) {
+      await proceedDelete();
+    } else {
+      // Lower level users need supervisor auth
+      setShowSupervisorModal(true);
+    }
   };
 
   const proceedDelete = async (supervisor?: string) => {
     if (!deleteConfig) return;
     setIsDeleting(true);
     try {
-      // 1. If supervisor provided, log it to audit staging
-      if (supervisor) {
-        await fetch("/api/sys/audit-staging", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: `DELETE_DOCUMENT_${deleteConfig.type.toUpperCase()}`,
-            description: `ลบ${deleteConfig.type === "category" ? "หมวดหมู่" : "ไฟล์"}: ${deleteConfig.name}`,
-            auth: { identifier: supervisor },
-          }),
-        });
-      }
+      // Log Action
+      await fetch("/api/sys/audit-staging", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: `DELETE_HR_DOCUMENT_${deleteConfig.type.toUpperCase()}`,
+          description: `ลบ${deleteConfig.type === "category" ? "แฟ้ม" : "ไฟล์"}: ${deleteConfig.name}`,
+          auth: {
+            identifier: supervisor || session?.user?.username, // Use current user if Level 0, otherwise use supervisor username
+          },
+        }),
+      });
 
       const url =
         deleteConfig.type === "category"
@@ -244,15 +259,14 @@ export default function DocumentCenterPage() {
   const handleEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editConfig) return;
-    const userLevel = session?.user?.level ?? 1;
 
-    // Check if supervisor auth is needed (Level > 0)
-    if (userLevel > 0) {
+    const userLevel = session?.user?.level ?? 5;
+
+    if (userLevel === 0) {
+      await proceedEdit();
+    } else {
       setShowSupervisorModal(true);
-      return;
     }
-
-    await proceedEdit();
   };
 
   const proceedEdit = async (supervisor?: string) => {
@@ -260,17 +274,15 @@ export default function DocumentCenterPage() {
     setIsEditing(true);
     try {
       // Audit Log
-      if (supervisor) {
-        await fetch("/api/sys/audit-staging", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: `EDIT_DOCUMENT_${editConfig.type.toUpperCase()}`,
-            description: `แก้ไข${editConfig.type === "category" ? "หมวดหมู่" : "ไฟล์"}: ${editConfig.name}`,
-            auth: { identifier: supervisor },
-          }),
-        });
-      }
+      await fetch("/api/sys/audit-staging", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: `EDIT_HR_DOCUMENT_${editConfig.type.toUpperCase()}`,
+          description: `แก้ไขข้อมูล ${editConfig.type === "category" ? "แฟ้ม" : "ไฟล์"}: ${editConfig.name}`,
+          auth: { identifier: supervisor || session?.user?.username },
+        }),
+      });
 
       const url =
         editConfig.type === "category"
@@ -595,7 +607,7 @@ export default function DocumentCenterPage() {
       )}
 
       {/* ── Modal 3: แก้ไขรายการ ── */}
-      {editConfig && (
+      {editConfig && !showSupervisorModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm">
           <div className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl p-8 animate-in zoom-in-95">
             <div className="flex justify-between items-center mb-6">
@@ -657,7 +669,7 @@ export default function DocumentCenterPage() {
 
       {/* ── Modal ยืนยันการลบ ── */}
       <ConfirmActionModal
-        isOpen={!!deleteConfig}
+        isOpen={!!deleteConfig && !showSupervisorModal}
         onClose={() => setDeleteConfig(null)}
         onConfirm={handleDelete}
         loading={isDeleting}
@@ -715,6 +727,7 @@ export default function DocumentCenterPage() {
               <FileUpload
                 label="อัปโหลดไฟล์ (PDF, รูปภาพ, Excel)"
                 accept=".pdf, image/*, .xls, .xlsx"
+                folder="hrm"
                 onUploadSuccess={(url) =>
                   setFileData({ ...fileData, fileUrl: url })
                 }

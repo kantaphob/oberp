@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
-import { uploadFileToServer } from "@/app/lib/uploadHelper"; 
+import { uploadFileToServer, deleteFileFromServer } from "@/app/lib/uploadHelper"; 
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -29,7 +29,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
 
     // 4. อัปโหลดไฟล์
-    const savedFileUrl = await uploadFileToServer(file, "hr-documents");
+    const savedFileUrl = await uploadFileToServer(file, "user");
 
     // 5. บันทึกข้อมูลลง Database
     const newDocument = await prisma.userProfilesFile.create({
@@ -100,8 +100,10 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
             where: { id: docId }
         });
 
-        // หมายเหตุ: ในระบบจริงควรลบไฟล์จาก storage ด้วย (fs.unlink)
-        // แต่เพื่อความปลอดภัยในตัวอย่างนี้เราจะลบแค่ record ใน DB ก่อนครับ
+        // 🗑️ ลบไฟล์ออกจาก Storage จริง
+        if (document.file) {
+            await deleteFileFromServer(document.file);
+        }
 
         return NextResponse.json({ message: "ลบเอกสารเรียบร้อยแล้ว" });
     } catch (error: any) {

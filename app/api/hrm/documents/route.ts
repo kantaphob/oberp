@@ -121,8 +121,21 @@ export async function DELETE(req: NextRequest) {
     }
 
     // Optional: Only allow owner or admin to delete
-    const doc = await prisma.hrDocument.findUnique({ where: { id } });
+    const doc = await prisma.hrDocument.findUnique({ 
+      where: { id },
+      include: { _count: { select: { files: true } } }
+    });
+    
     if (!doc) return NextResponse.json({ success: false, message: "Not found" }, { status: 404 });
+    
+    // 🛡️ Check if "in use"
+    if (doc._count.files > 0) {
+      return NextResponse.json({ 
+        success: false, 
+        message: "ไม่สามารถลบหมวดหมู่นี้ได้เนื่องจากยังมีไฟล์ค้างอยู่ในแฟ้ม โปรดลบไฟล์ทั้งหมดออกก่อน" 
+      }, { status: 400 });
+    }
+
     if (doc.userId !== session.user.id && session.user.level !== 0) {
       return NextResponse.json({ success: false, message: "Permission Denied" }, { status: 403 });
     }

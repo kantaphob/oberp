@@ -14,7 +14,8 @@ interface FileUploadProps {
 export default function FileUpload({ 
   label = "อัปโหลดไฟล์เอกสาร", 
   accept = ".pdf, .jpg, .png, .xlsx",
-  onUploadSuccess
+  onUploadSuccess,
+  folder = "documents"
 }: FileUploadProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
@@ -32,6 +33,9 @@ export default function FileUpload({
     try {
       const formData = new FormData();
       formData.append("file", file);
+      if (folder) {
+        formData.append("folder", folder);
+      }
 
       const res = await fetch("/api/upload", {
         method: "POST",

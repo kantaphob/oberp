@@ -1,4 +1,4 @@
-import { writeFile, mkdir } from "fs/promises";
+import { writeFile, mkdir, unlink } from "fs/promises";
 import path from "path";
 import { v4 as uuidv4 } from "uuid";
 
@@ -34,5 +34,26 @@ export async function uploadFileToServer(file: File, folderName: string = "docum
   } catch (error) {
     console.error("Upload File Error:", error);
     throw new Error("ไม่สามารถบันทึกไฟล์ลง Server ได้");
+  }
+}
+
+/**
+ * ฟังก์ชันสำหรับลบไฟล์ออกจาก Server
+ * @param fileUrl URL ของไฟล์ (เช่น '/uploads/documents/xxx.pdf')
+ */
+export async function deleteFileFromServer(fileUrl: string) {
+  try {
+    if (!fileUrl || !fileUrl.startsWith("/uploads")) return;
+
+    // แปลง URL เป็น Path ในเครื่อง (ตัด / ข้างหน้าออก)
+    const relativePath = fileUrl.startsWith("/") ? fileUrl.slice(1) : fileUrl;
+    const filePath = path.join(process.cwd(), "public", relativePath);
+
+    // ลบไฟล์
+    await unlink(filePath);
+    console.log(`Deleted file: ${filePath}`);
+  } catch (error) {
+    console.error("Delete File Error:", error);
+    // ไม่ throw error เพื่อไม่ให้การลบ record ใน DB สะดุด (แต่อาจจะ log ไว้)
   }
 }
