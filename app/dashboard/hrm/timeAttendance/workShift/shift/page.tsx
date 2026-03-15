@@ -128,9 +128,8 @@ export default function ShiftMasterPage() {
     setTargetDeleteShift(shift);
   };
 
-  const executeDelete = async (shiftId: string, supervisorUsername?: string) => {
+  const executeDelete = async (shiftId: string, supervisorUsername?: string, supervisorPassword?: string) => {
     setIsDeleting(true);
-    const loadingToast = notify.info("กำลังประมวลผลการลบ...");
     try {
       // If audit is required, verify via Audit Staging first
       if (supervisorUsername) {
@@ -139,15 +138,26 @@ export default function ShiftMasterPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             action: "DELETE_WORK_SHIFT",
-            description: `Unauthorized user attempted to delete work shift ID: ${shiftId}`,
-            auth: { identifier: supervisorUsername }, // Assuming API handles just username now or we need to update API
+            description: `ขอลบกะการทำงาน: ${shiftId}`,
             targetId: shiftId,
-            targetModel: "WorkShift"
+            targetModel: "WorkShift",
+            payload: { action: "DELETE", id: shiftId },
+            auth: { 
+              identifier: supervisorUsername,
+              password: supervisorPassword // ✅ Pass the password
+            }
           })
         });
         const auditData = await auditRes.json();
         if (!auditData.success) {
           throw new Error(auditData.message);
+        }
+
+        // 🏆 กรณี Staged (Maker-Checker)
+        if (auditData.status === "STAGED") {
+          notify.success("ส่งคำขอสำเร็จ", "รายการจะถูกส่งไปยัง Report เพื่อรออนุมัติขั้นสุดท้าย");
+          setTargetDeleteShift(null);
+          return;
         }
       }
 
@@ -536,8 +546,8 @@ export default function ShiftMasterPage() {
         isOpen={!!targetDeleteShift}
         onClose={() => setTargetDeleteShift(null)}
         loading={isDeleting}
-        onConfirm={async (username) => {
-           await executeDelete(targetDeleteShift.id, username);
+        onConfirm={async (username, password) => {
+           await executeDelete(targetDeleteShift.id, username, password);
         }}
       />
     </div>

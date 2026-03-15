@@ -56,6 +56,10 @@ model JobRole {
   jobLineId      String?
   parentRoleId   String?
   description    String?
+  minSalary      Float?
+  maxSalary      Float?
+  startingSalary Float?        @default(0)
+  defaultPaymentType PayType @default(MONTHLY)
   isActive       Boolean       @default(true)
   department     Department?   @relation(fields: [departmentId], references: [id])
   jobLine        JobLine?      @relation(fields: [jobLineId], references: [id])
@@ -64,6 +68,8 @@ model JobRole {
   permissions    Permission[]
   userProfiles   UserProfile[]
   users          User[]
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @default(now()) @updatedAt
 
   @@map("core_job_roles")
 }
@@ -131,6 +137,13 @@ model User {
   hrDocuments     hrDocument[]     @relation("UserDocuments")
   hrDocumentFiles hrDocumentFile[] @relation("UserFiles")
   uploadedFiles   hrDocumentFile[] @relation("DocumentUploader")
+
+  employeeCompensation EmployeeCompensation?
+  salaryAdjustments    SalaryAdjustment[]    @relation("UserSalaryHistory")
+  approvedSalaries     SalaryAdjustment[]    @relation("SalaryApprover")
+  payrollDeductions    PayrollDeduction[]
+  earnings             PayrollEarning[]
+  payslips             Payslip[]
 
   @@map("core_users")
 }
@@ -638,6 +651,166 @@ enum hrDocStatus {
   ACTIVE
   ARCHIVED
   EXPIRED
+}
+
+// =========================================
+// 💰 PHASE 5: Payroll & Deductions (ระบบเงินเดือน)
+// =========================================
+model Payslip {
+  id          String @id @default(uuid())
+  userId      String
+  user        User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  periodMonth String
+
+  // Earnings
+  baseSalary      Float
+  commission      Float @default(0)
+  otAmount        Float @default(0)
+  incentive       Float @default(0)
+  mobileAllowance Float @default(0)
+  otherEarnings   Float @default(0)
+
+  // Deductions
+  ssoDeduction    Float @default(0)
+  guaranteeRetain Float @default(0)
+  taxDeduction    Float @default(0)
+  leaveDeduction  Float @default(0)
+  otherDeductions Float @default(0)
+
+  otherDetails Json?
+  remarks      String?
+
+  // Summary
+  totalEarnings   Float
+  totalDeductions Float
+  netIncome       Float
+
+  status PayslipStatus @default(DRAFT)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("hrm_payslips") // 🌟 เพิ่ม @@map
+}
+
+model PayrollConfig {
+  id                String @id @default(uuid())
+  ssoRateEmployee   Float  @default(5.0)
+  ssoRateCompany    Float  @default(5.0)
+  ssoMaxBase        Float  @default(15000)
+  whtRateDaily      Float  @default(3.0)
+  otRateNormal      Float  @default(1.5)
+  otRateHoliday     Float  @default(3.0)
+  latePenaltyPerMin Float  @default(5.0)
+
+  updatedAt   DateTime @updatedAt
+  updatedById String?
+
+  @@map("hrm_payroll_configs") // 🌟 เพิ่ม @@map
+}
+
+model EmployeeCompensation {
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  paymentType PayType
+  baseWage    Float
+
+  // 🌟 เพิ่มฟิลด์เรท OT เหมาจ่ายที่หายไป
+  fixedOtRatePerHour Float? // ถ้าระบุ (เช่น 50) ระบบจะใช้เรทนี้คิด OT แทนการคำนวณตามสัดส่วนกฎหมาย
+
+  fixedAllowance Float   @default(0)
+  deductSso      Boolean @default(true)
+  deductTax      Boolean @default(true)
+
+  @@map("hrm_employee_compensations") // 🌟 เพิ่ม @@map
+}
+
+// 🌟 ตารางประวัติการปรับขึ้นเงินเดือน
+model SalaryAdjustment {
+  id String @id @default(uuid())
+
+  userId String
+  user   User   @relation("UserSalaryHistory", fields: [userId], references: [id], onDelete: Cascade)
+
+  oldWage Float
+  newWage Float
+
+  reason        String
+  effectiveDate DateTime @db.Date
+
+  status String @default("PENDING")
+
+  approvedById String?
+  approver     User?   @relation("SalaryApprover", fields: [approvedById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("hrm_salary_adjustments")
+}
+
+enum PayType {
+  MONTHLY
+  DAILY
+  PER_PROJECT
+}
+
+model PayrollDeduction {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  code      String
+  amount    Float
+  reason    String
+  refNumber String?
+
+  status      DeductionStatus @default(PENDING)
+  targetMonth String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("hrm_payroll_deductions") // 🌟 เพิ่ม @@map
+}
+
+model PayrollEarning {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  code      String
+  amount    Float
+  reason    String
+  refNumber String?
+
+  status      EarningStatus @default(PENDING)
+  targetMonth String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("hrm_payroll_earnings")
+}
+
+enum EarningStatus {
+  PENDING
+  PAID
+  CANCELLED
+}
+
+enum DeductionStatus {
+  PENDING
+  DEDUCTED
+  CANCELLED
+}
+
+enum PayslipStatus {
+  DRAFT
+  APPROVED
+  PAID
 }
 
 // ==========================================

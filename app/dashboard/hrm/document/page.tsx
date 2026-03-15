@@ -215,23 +215,42 @@ export default function DocumentCenterPage() {
     }
   };
 
-  const proceedDelete = async (supervisor?: string) => {
+  const proceedDelete = async (supervisor?: string, password?: string) => {
     if (!deleteConfig) return;
     setIsDeleting(true);
     try {
-      // Log Action
-      await fetch("/api/sys/audit-staging", {
+      // 1. ตรวจสอบสิทธิ์และบันทึก Audit (DoA & Staging)
+      const auditRes = await fetch("/api/sys/audit-staging", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: `DELETE_HR_DOCUMENT_${deleteConfig.type.toUpperCase()}`,
           description: `ลบ${deleteConfig.type === "category" ? "แฟ้ม" : "ไฟล์"}: ${deleteConfig.name}`,
+          targetModel: deleteConfig.type === "category" ? "hrDocument" : "hrDocumentFile",
+          targetId: deleteConfig.id,
+          payload: { action: "DELETE", id: deleteConfig.id, type: deleteConfig.type },
           auth: {
-            identifier: supervisor || session?.user?.username, // Use current user if Level 0, otherwise use supervisor username
+            identifier: supervisor || session?.user?.username,
+            password: password,
           },
         }),
       });
 
+      const auditData = await auditRes.json();
+      if (!auditData.success) {
+        notify.error("การตรวจสอบล้มเหลว", auditData.message);
+        return;
+      }
+
+      // 🏆 กรณี Staged (Maker-Checker)
+      if (auditData.status === "STAGED") {
+        notify.success("ส่งคำขอสำเร็จ", "รายการถูกส่งไปยัง Report เพื่อรอการอนุมัติขั้นสุดท้ายจากส่วนกลาง");
+        setDeleteConfig(null);
+        setShowSupervisorModal(false);
+        return;
+      }
+
+      // 🏆 กรณี Authorized (Direct Approval): ดำเนินการลบทันที
       const url =
         deleteConfig.type === "category"
           ? `/api/hrm/documents?id=${deleteConfig.id}`
@@ -269,38 +288,57 @@ export default function DocumentCenterPage() {
     }
   };
 
-  const proceedEdit = async (supervisor?: string) => {
+  const proceedEdit = async (supervisor?: string, password?: string) => {
     if (!editConfig) return;
     setIsEditing(true);
+
     try {
-      // Audit Log
-      await fetch("/api/sys/audit-staging", {
+      const editPayload =
+        editConfig.type === "category"
+          ? { id: editConfig.id, name: editConfig.name, description: editConfig.desc }
+          : { id: editConfig.id, fileName: editConfig.name };
+
+      // 1. ตรวจสอบสิทธิ์และบันทึก Audit (DoA & Staging)
+      const auditRes = await fetch("/api/sys/audit-staging", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: `EDIT_HR_DOCUMENT_${editConfig.type.toUpperCase()}`,
           description: `แก้ไขข้อมูล ${editConfig.type === "category" ? "แฟ้ม" : "ไฟล์"}: ${editConfig.name}`,
-          auth: { identifier: supervisor || session?.user?.username },
+          targetModel: editConfig.type === "category" ? "hrDocument" : "hrDocumentFile",
+          targetId: editConfig.id,
+          payload: { action: "UPDATE", ...editPayload },
+          auth: {
+            identifier: supervisor || session?.user?.username,
+            password: password,
+          },
         }),
       });
 
+      const auditData = await auditRes.json();
+      if (!auditData.success) {
+        notify.error("การตรวจสอบล้มเหลว", auditData.message);
+        return;
+      }
+
+      // 🏆 กรณี Staged (Maker-Checker)
+      if (auditData.status === "STAGED") {
+        notify.success("ส่งคำขอแก้ไขสำเร็จ", "รายการถูกส่งไปยัง Report เพื่อรอตรวจและอนุมัติจากส่วนกลาง");
+        setEditConfig(null);
+        setShowSupervisorModal(false);
+        return;
+      }
+
+      // 🏆 กรณี Authorized (Direct Approval): ดำเนินการอัปเดตทันที
       const url =
         editConfig.type === "category"
           ? "/api/hrm/documents"
           : "/api/hrm/documents/files";
-      const body =
-        editConfig.type === "category"
-          ? {
-              id: editConfig.id,
-              name: editConfig.name,
-              description: editConfig.desc,
-            }
-          : { id: editConfig.id, fileName: editConfig.name };
 
       const res = await fetch(url, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify(editPayload),
       });
       const result = await res.json();
 
@@ -684,12 +722,12 @@ export default function DocumentCenterPage() {
         isOpen={showSupervisorModal}
         onClose={() => setShowSupervisorModal(false)}
         loading={isDeleting || isEditing}
-        onConfirm={async (supervisor) => {
-          if (deleteConfig) await proceedDelete(supervisor);
-          else if (editConfig) await proceedEdit(supervisor);
+        onConfirm={async (supervisor, password) => {
+          if (deleteConfig) await proceedDelete(supervisor, password);
+          else if (editConfig) await proceedEdit(supervisor, password);
         }}
         title="Supervisor Authorization Required"
-        description={`กรุณาระบุรหัสผู้ดูแลระดับสูง (Level 0) เพื่อยืนยันการ${deleteConfig ? "ลบ" : "แก้ไข"}ข้อมูล`}
+        description={`กรุณาระบุรหัสผู้ดูแลระดับสูง (Level 0) และรหัสผ่านเพื่อยืนยันการ${deleteConfig ? "ลบ" : "แก้ไข"}ข้อมูล`}
       />
 
       {/* ── Modal 2: อัปโหลดไฟล์ ── */}

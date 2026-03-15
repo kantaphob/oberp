@@ -19,6 +19,7 @@ export async function PUT(
 
     const { 
       name, prefix, level, description, departmentId, jobLineId, parentRoleId, isActive,
+      minSalary, maxSalary,
       approverUsername 
     } = body;
 
@@ -85,6 +86,8 @@ export async function PUT(
         jobLineId: jobLineId || null,
         parentRoleId: parentRoleId || null,
         isActive: isActive !== undefined ? isActive : true,
+        minSalary: minSalary ? parseFloat(minSalary) : null,
+        maxSalary: maxSalary ? parseFloat(maxSalary) : null,
       },
       include: {
         department: true,

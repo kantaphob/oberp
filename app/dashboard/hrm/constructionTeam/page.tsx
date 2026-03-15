@@ -33,6 +33,12 @@ type UserProfile = {
 
 type JobRole = {
   name: string;
+  level: number;
+  department: {
+    id: string;
+    name: string;
+    code: string;
+  } | null;
 };
 
 type TeamMember = {
@@ -161,6 +167,18 @@ export default function ConstructionTeamPage() {
   }, [fetchData]);
 
   // ── Derived ──────────────────────────────────────────────────────────────
+  
+  // แผนกที่เกี่ยวข้องกับหน้างานและโปรเจค (Operations, Engineering, Procurement)
+  const PROJECT_DEPARTMENTS = ["OPS", "ENG", "PRO"];
+
+  // กรองพนักงานเฉพาะสายงานโครงการและช่างฝีมือ (ไม่เอา บริหาร, บัญชี, บุคคล)
+  const constructionUsers = useMemo(() => {
+    return allUsers.filter((u) => {
+      const deptCode = u.role?.department?.code;
+      // ถ้าไม่มีแผนก หรือ อยู่ในกลุ่มแผนกโครงการ ให้แสดง
+      return !deptCode || PROJECT_DEPARTMENTS.includes(deptCode);
+    });
+  }, [allUsers]);
 
   const selectedTeam = useMemo(
     () => teams.find((t) => t.id === selectedTeamId) ?? null,
@@ -184,10 +202,10 @@ export default function ConstructionTeamPage() {
     [selectedTeam],
   );
 
-  // Filtered users in right panel
+  // Filtered users in right panel (ใช้ constructionUsers ที่กรองแล้ว)
   const filteredUsers = useMemo(() => {
     const q = memberSearch.toLowerCase();
-    return allUsers.filter((u) => {
+    return constructionUsers.filter((u) => {
       const full = getFullName(u.profile, u.username).toLowerCase();
       return (
         full.includes(q) ||
@@ -195,18 +213,20 @@ export default function ConstructionTeamPage() {
         (u.role?.name ?? "").toLowerCase().includes(q)
       );
     });
-  }, [allUsers, memberSearch]);
+  }, [constructionUsers, memberSearch]);
 
-  // Manpower stats
+  // Manpower stats (ใช้ความหมายแฝงจากตัวแปรที่กรองแล้ว)
   const stats = useMemo(() => {
     const assignedIds = new Set(
       teams.flatMap((t) => t.members.map((m) => m.id)),
     );
-    const totalWorkers = allUsers.length;
-    const assigned = assignedIds.size;
+    const totalWorkers = constructionUsers.length;
+    const assigned = Array.from(assignedIds).filter(id => 
+        constructionUsers.some(u => u.id === id)
+    ).length;
     const idle = totalWorkers - assigned;
     return { totalWorkers, assigned, idle };
-  }, [teams, allUsers]);
+  }, [teams, constructionUsers]);
 
   // ── Actions ──────────────────────────────────────────────────────────────
 
@@ -523,7 +543,7 @@ export default function ConstructionTeamPage() {
                 exit={{ opacity: 0, y: -8 }}
                 transition={{ duration: 0.2 }}
               >
-                <OverviewTab teams={teams} allUsers={allUsers} stats={stats} />
+                <OverviewTab teams={teams} allUsers={constructionUsers} stats={stats} />
               </motion.div>
             )}
           </AnimatePresence>

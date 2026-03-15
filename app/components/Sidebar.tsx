@@ -95,7 +95,10 @@ export const MENU_DATA: MenuGroup[] = [
         id: "dashboard-core",
         title: "Dashboard",
         icon: "LayoutDashboard",
-        subMenus: [{ name: "Home", href: "/dashboard" }],
+        subMenus: [
+          { name: "Home", href: "/dashboard" },
+          { name: "Report", href: "/dashboard/omega/report" },
+        ],
       },
     ],
   },
@@ -152,14 +155,14 @@ export const MENU_DATA: MenuGroup[] = [
   // ── 3. MASTER DATA ────────────────────────────────────────────────────────
   {
     groupName: "Master Data",
-    accentDot: "bg-rose-600",
+    accentDot: "bg-cyan-600",
     themeClass: {
-      activeBg: "bg-rose-50",
-      activeText: "text-rose-700",
-      hoverBg: "hover:bg-rose-50/50",
-      hoverText: "hover:text-rose-700",
-      iconActive: "text-rose-600",
-      indicator: "bg-rose-600",
+      activeBg: "bg-cyan-50",
+      activeText: "text-cyan-700",
+      hoverBg: "hover:bg-cyan-50/50",
+      hoverText: "hover:text-cyan-700",
+      iconActive: "text-cyan-600",
+      indicator: "bg-cyan-600",
     },
     items: [
       {
@@ -203,7 +206,6 @@ export const MENU_DATA: MenuGroup[] = [
         subMenus: [
           { name: "Permission", href: "/dashboard/omega/permission" },
           { name: "ActivityLog", href: "/dashboard/omega/activityLog" },
-          { name: "Report", href: "/dashboard/omega/report" },
         ],
       },
     ],
@@ -212,14 +214,14 @@ export const MENU_DATA: MenuGroup[] = [
   // ── 4. ADMINISTRATOR ──────────────────────────────────────────────────────
   {
     groupName: "Administrator",
-    accentDot: "bg-orange-600",
+    accentDot: "bg-pink-600",
     themeClass: {
-      activeBg: "bg-orange-50",
-      activeText: "text-orange-700",
-      hoverBg: "hover:bg-orange-50/50",
-      hoverText: "hover:text-orange-700",
-      iconActive: "text-orange-600",
-      indicator: "bg-orange-600",
+      activeBg: "bg-pink-50",
+      activeText: "text-pink-700",
+      hoverBg: "hover:bg-pink-50/50",
+      hoverText: "hover:text-pink-700",
+      iconActive: "text-pink-600",
+      indicator: "bg-pink-600",
     },
     items: [
       {
@@ -233,53 +235,45 @@ export const MENU_DATA: MenuGroup[] = [
       },
     ],
   },
-
-  // ── 5. OPERATIONS ─────────────────────────────────────────────────────────
+  // ── 5. HUMAN RESOURCE MANAGEMENT ─────────────────────────────────────────────────────────
   {
-    groupName: "Operations",
-    accentDot: "bg-blue-600",
+    groupName: "Human Resource Management",
+    accentDot: "bg-violet-500",
     themeClass: {
-      activeBg: "bg-blue-50",
-      activeText: "text-blue-700",
-      hoverBg: "hover:bg-blue-50/50",
-      hoverText: "hover:text-blue-700",
-      iconActive: "text-blue-600",
-      indicator: "bg-blue-600",
+      activeBg: "bg-violet-50",
+      activeText: "text-violet-700",
+      hoverBg: "hover:bg-violet-50/50",
+      hoverText: "hover:text-violet-700",
+      iconActive: "text-violet-600",
+      indicator: "bg-violet-500",
     },
     items: [
       {
-        id: "project",
-        title: "ระบบงานโปรเจค",
-        icon: "HardHat",
+        id: "hrm",
+        title: "ทรัพยากรบุคคล",
+        icon: "Users",
         subMenus: [
-          { name: "Project Timeline", href: "/" },
-          { name: "Daily Site Report", href: "/" },
-          { name: "Task Assignment", href: "/" },
-          { name: "Defect Tracking", href: "/" },
+          { name: "Employee & Sub", href: "/dashboard/hrm/employee" },
+          {
+            name: "Construction Team",
+            href: "/dashboard/hrm/constructionTeam",
+          },
+          { name: "Time Attendance", href: "/dashboard/hrm/timeAttendance" },
+          { name: "Payroll & Wages", href: "/dashboard/hrm/payroll" },
+          { name: "Document", href: "/dashboard/hrm/document" },
         ],
       },
       {
-        id: "procurement",
-        title: "จัดซื้อ & คลังสินค้า",
-        icon: "ShoppingCart",
+        id: "admin",
+        title: "ผู้ดูแลระบบ",
+        icon: "Settings",
         subMenus: [
-          { name: "Purchase Request (PR)", href: "/" },
-          { name: "Purchase Order (PO)", href: "/" },
-          { name: "Inventory Tracking", href: "/" },
-        ],
-      },
-      {
-        id: "document",
-        title: "จัดการเอกสาร",
-        icon: "FolderOpen",
-        subMenus: [
-          { name: "Blueprints & 3D", href: "/" },
-          { name: "Licenses & Specs", href: "/" },
+          { name: "Role-Based Access", href: "/" },
+          { name: "Master Data", href: "/" },
         ],
       },
     ],
   },
-
   // ── 6. FINANCE & SALES ────────────────────────────────────────────────────
   {
     groupName: "Finance & Sales",
@@ -324,42 +318,47 @@ export const MENU_DATA: MenuGroup[] = [
       },
     ],
   },
-
-  // ── 7. MANAGEMENT ─────────────────────────────────────────────────────────
+  // ── 6. OPERATIONS ─────────────────────────────────────────────────────────
   {
-    groupName: "Management",
-    accentDot: "bg-violet-500",
+    groupName: "Operations",
+    accentDot: "bg-violet-600",
     themeClass: {
       activeBg: "bg-violet-50",
       activeText: "text-violet-700",
       hoverBg: "hover:bg-violet-50/50",
       hoverText: "hover:text-violet-700",
       iconActive: "text-violet-600",
-      indicator: "bg-violet-500",
+      indicator: "bg-violet-600",
     },
     items: [
       {
-        id: "hrm",
-        title: "ทรัพยากรบุคคล",
-        icon: "Users",
+        id: "project",
+        title: "ระบบงานโปรเจค",
+        icon: "HardHat",
         subMenus: [
-          { name: "Employee & Sub", href: "/dashboard/hrm/employee" },
-          {
-            name: "Construction Team",
-            href: "/dashboard/hrm/constructionTeam",
-          },
-          { name: "Time Attendance", href: "/dashboard/hrm/timeAttendance" },
-          { name: "Payroll & Wages", href: "/dashboard/hrm/payroll" },
-          { name: "Document", href: "/dashboard/hrm/document" },
+          { name: "Project Timeline", href: "/" },
+          { name: "Daily Site Report", href: "/" },
+          { name: "Task Assignment", href: "/" },
+          { name: "Defect Tracking", href: "/" },
         ],
       },
       {
-        id: "admin",
-        title: "ผู้ดูแลระบบ",
-        icon: "Settings",
+        id: "procurement",
+        title: "จัดซื้อ & คลังสินค้า",
+        icon: "ShoppingCart",
         subMenus: [
-          { name: "Role-Based Access", href: "/" },
-          { name: "Master Data", href: "/" },
+          { name: "Purchase Request (PR)", href: "/" },
+          { name: "Purchase Order (PO)", href: "/" },
+          { name: "Inventory Tracking", href: "/" },
+        ],
+      },
+      {
+        id: "document",
+        title: "จัดการเอกสาร",
+        icon: "FolderOpen",
+        subMenus: [
+          { name: "Blueprints & 3D", href: "/" },
+          { name: "Licenses & Specs", href: "/" },
         ],
       },
     ],

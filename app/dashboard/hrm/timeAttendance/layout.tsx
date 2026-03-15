@@ -33,11 +33,6 @@ export default function TimeAttendanceLayout({
       href: "/dashboard/hrm/timeAttendance/leaveRequest",
       icon: CalendarRange,
     },
-    {
-      label: "เอกสาร",
-      href: "/dashboard/hrm/timeAttendance/document",
-      icon: FileText,
-    },
   ];
 
   return (

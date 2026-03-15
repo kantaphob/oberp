@@ -12,9 +12,9 @@ interface SupervisorContext {
 export function useSupervisor() {
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [onConfirmCallback, setOnConfirmCallback] = useState<((supervisorUsername: string) => Promise<void>) | null>(null);
+  const [onConfirmCallback, setOnConfirmCallback] = useState<((username: string, password?: string) => Promise<void>) | null>(null);
 
-  const openModal = (onConfirmAction: (supervisorUsername: string) => Promise<void>) => {
+  const openModal = (onConfirmAction: (username: string, password?: string) => Promise<void>) => {
     setOnConfirmCallback(() => onConfirmAction);
     setIsOpen(true);
   };
@@ -25,11 +25,11 @@ export function useSupervisor() {
     setOnConfirmCallback(null);
   };
 
-  const handleConfirm = async (supervisorUsername: string) => {
+  const handleConfirm = async (username: string, password?: string) => {
     if (!onConfirmCallback) return;
     setLoading(true);
     try {
-      await onConfirmCallback(supervisorUsername);
+      await onConfirmCallback(username, password);
       setIsOpen(false);
     } catch (err: any) {
       throw err; // ให้ Modal แสดงผล Error

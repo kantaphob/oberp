@@ -39,6 +39,8 @@ type JobRole = {
   department?: Department | null;
   jobLine?: JobLine | null;
   parentRole?: { id: string; name: string; prefix: string } | null;
+  minSalary?: number | null;
+  maxSalary?: number | null;
 };
 
 // ── Level config ──────────────────────────────────────────────────────────────
@@ -257,6 +259,8 @@ export default function JobRolePage() {
     jobLineId: "",
     parentRoleId: "",
     isActive: true,
+    minSalary: "",
+    maxSalary: "",
   });
 
   const fetchData = async () => {
@@ -295,6 +299,8 @@ export default function JobRolePage() {
             jobLineId: role.jobLineId || "",
             parentRoleId: role.parentRoleId || "",
             isActive: role.isActive !== undefined ? role.isActive : true,
+            minSalary: role.minSalary?.toString() || "",
+            maxSalary: role.maxSalary?.toString() || "",
           }
         : {
             id: "",
@@ -306,6 +312,8 @@ export default function JobRolePage() {
             jobLineId: "",
             parentRoleId: "",
             isActive: true,
+            minSalary: "",
+            maxSalary: "",
           },
     );
     setIsModalOpen(true);
@@ -336,6 +344,8 @@ export default function JobRolePage() {
             jobLineId: formData.jobLineId || null,
             parentRoleId: formData.parentRoleId || null,
             isActive: formData.isActive,
+            minSalary: formData.minSalary ? parseFloat(formData.minSalary) : null,
+            maxSalary: formData.maxSalary ? parseFloat(formData.maxSalary) : null,
             approverUsername, // ส่งรหัสผู้ดูแลไปด้วยถ้ามี
           }),
         },
@@ -966,6 +976,56 @@ export default function JobRolePage() {
                             </option>
                           ))}
                         </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Salary Range */}
+                  <div className="glass-section rounded-2xl p-4 space-y-4 bg-blue-50/30 border-blue-100">
+                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                      <TrendingUp size={12} className="text-blue-400" />
+                      ฐานเงินเดือน (Salary Range)
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[12px] font-semibold text-slate-600 mb-1.5">
+                          เงินเดือนขั้นต่ำ (Min)
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            value={formData.minSalary}
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                minSalary: e.target.value,
+                              })
+                            }
+                            placeholder="0.00"
+                            className="glass-input w-full px-4 py-2.5 rounded-xl text-sm pl-10"
+                          />
+                          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">฿</span>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-[12px] font-semibold text-slate-600 mb-1.5">
+                          เงินเดือนขั้นสูงสุด (Max)
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            value={formData.maxSalary}
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                maxSalary: e.target.value,
+                              })
+                            }
+                            placeholder="0.00"
+                            className="glass-input w-full px-4 py-2.5 rounded-xl text-sm pl-10"
+                          />
+                          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">฿</span>
+                        </div>
                       </div>
                     </div>
                   </div>
