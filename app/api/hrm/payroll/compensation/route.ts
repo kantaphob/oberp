@@ -16,42 +16,73 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const userId = searchParams.get("userId");
 
-    if (!userId) {
-      return NextResponse.json({ success: false, message: "Missing userId" }, { status: 400 });
+    if (userId) {
+      const compensation = await prisma.employeeCompensation.findUnique({
+        where: { userId },
+        include: {
+          user: {
+            include: {
+              role: true,
+              profile: true
+            }
+          }
+        }
+      });
+
+      // ดึงประวัติการปรับเงินเดือนด้วย
+      const adjustments = await prisma.salaryAdjustment.findMany({
+        where: { userId },
+        orderBy: { effectiveDate: "desc" },
+        include: {
+          approver: {
+            select: {
+              username: true,
+              profile: { select: { firstName: true, lastName: true } }
+            }
+          }
+        }
+      });
+
+      return NextResponse.json({ 
+        success: true, 
+        data: {
+          compensation,
+          adjustments
+        }
+      });
     }
 
-    const compensation = await prisma.employeeCompensation.findUnique({
-      where: { userId },
-      include: {
-        user: {
-          include: {
-            role: true,
-            profile: true
-          }
-        }
-      }
-    });
-
-    // ดึงประวัติการปรับเงินเดือนด้วย
-    const adjustments = await prisma.salaryAdjustment.findMany({
-      where: { userId },
-      orderBy: { effectiveDate: "desc" },
-      include: {
-        approver: {
+    // กรณีต้องการดูทั้งหมด (Dashboard)
+    const allCompensations = await prisma.user.findMany({
+      select: {
+        id: true,
+        username: true,
+        profile: {
           select: {
-            username: true,
-            profile: { select: { firstName: true, lastName: true } }
+            firstName: true,
+            lastName: true,
+            image: true,
+            startDate: true
           }
-        }
-      }
+        },
+        role: {
+          select: {
+            id: true,
+            name: true,
+            level: true,
+            startingSalary: true,
+            minSalary: true,
+            maxSalary: true
+          }
+        },
+        employeeCompensation: true
+      },
+      orderBy: { username: "asc" }
     });
 
     return NextResponse.json({ 
       success: true, 
-      data: {
-        compensation,
-        adjustments
-      }
+      data: allCompensations
     });
   } catch (error: any) {
     console.error("[COMPENSATION_GET_ERROR]", error);
@@ -72,22 +103,28 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { userId, paymentType, baseWage, fixedOtRatePerHour, fixedAllowance, deductSso, deductTax } = body;
 
+    const cleanNum = (val: any) => {
+      if (typeof val === 'number') return val;
+      if (!val) return 0;
+      return parseFloat(val.toString().replace(/,/g, '')) || 0;
+    };
+
     const result = await prisma.employeeCompensation.upsert({
       where: { userId },
       update: {
         paymentType,
-        baseWage: parseFloat(baseWage),
-        fixedOtRatePerHour: fixedOtRatePerHour ? parseFloat(fixedOtRatePerHour) : null,
-        fixedAllowance: parseFloat(fixedAllowance) || 0,
+        baseWage: cleanNum(baseWage),
+        fixedOtRatePerHour: fixedOtRatePerHour ? cleanNum(fixedOtRatePerHour) : null,
+        fixedAllowance: cleanNum(fixedAllowance),
         deductSso,
         deductTax
       },
       create: {
         userId,
         paymentType,
-        baseWage: parseFloat(baseWage),
-        fixedOtRatePerHour: fixedOtRatePerHour ? parseFloat(fixedOtRatePerHour) : null,
-        fixedAllowance: parseFloat(fixedAllowance) || 0,
+        baseWage: cleanNum(baseWage),
+        fixedOtRatePerHour: fixedOtRatePerHour ? cleanNum(fixedOtRatePerHour) : null,
+        fixedAllowance: cleanNum(fixedAllowance),
         deductSso,
         deductTax
       }
@@ -113,11 +150,17 @@ export async function PATCH(req: NextRequest) {
     const body = await req.json();
     const { userId, oldWage, newWage, reason, effectiveDate } = body;
 
+    const cleanNum = (val: any) => {
+      if (typeof val === 'number') return val;
+      if (!val) return 0;
+      return parseFloat(val.toString().replace(/,/g, '')) || 0;
+    };
+
     const adjustment = await prisma.salaryAdjustment.create({
       data: {
         userId,
-        oldWage: parseFloat(oldWage),
-        newWage: parseFloat(newWage),
+        oldWage: cleanNum(oldWage),
+        newWage: cleanNum(newWage),
         reason,
         effectiveDate: new Date(effectiveDate),
         status: "PENDING"

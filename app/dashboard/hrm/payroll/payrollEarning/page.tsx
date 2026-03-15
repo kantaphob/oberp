@@ -58,6 +58,16 @@ export default function PayrollEarningPage() {
   };
   const [showModal, setShowModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [syncLoading, setSyncLoading] = useState(false);
+
+  // Filter State
+  const selectedPeriod = searchParams.get("period") || new Date().toISOString().substring(0, 7);
+  const setSelectedPeriod = (val: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (val) params.set("period", val);
+    else params.delete("period");
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  };
 
   // Form State
   const [formData, setFormData] = useState({
@@ -69,20 +79,37 @@ export default function PayrollEarningPage() {
     targetMonth: new Date().toISOString().substring(0, 7), // YYYY-MM
   });
 
-  const earningCodes = [
-    { value: "INC_BONUS", label: "เงินโบนัส (Bonus)" },
-    { value: "INC_COMMISSION", label: "ค่านายหน้า (Commission)" },
-    { value: "INC_INCENTIVE", label: "เบี้ยขยัน (Incentive)" },
-    { value: "INC_ALLOWANCE_MOBILE", label: "ค่าโทรศัพท์ (Mobile Allowance)" },
-    { value: "INC_ALLOWANCE_TRAVEL", label: "ค่าเดินทาง (Travel Allowance)" },
-    { value: "INC_ALLOWANCE_HOUSING", label: "ค่าที่พัก (Housing Allowance)" },
-    { value: "INC_OTHER", label: "รายได้อื่นๆ (Other)" },
-  ];
+  const [earningCodes, setEarningCodes] = useState<{ value: string; label: string }[]>([]);
 
   useEffect(() => {
     fetchData();
     fetchUsers();
+    fetchEarningTypes();
   }, []);
+
+  const fetchEarningTypes = async () => {
+    try {
+      const res = await fetch("/api/hrm/payroll/config/earning-types");
+      const result = await res.json();
+      if (result.success && result.data.length > 0) {
+        setEarningCodes(result.data.map((t: any) => ({ value: t.code, label: t.name })));
+        // หากต้องการให้มี Default ตัวแรก
+        if (formData.code === "INC_BONUS") {
+           setFormData(prev => ({ ...prev, code: result.data[0].code }));
+        }
+      } else {
+        // Fallback list
+        setEarningCodes([
+          { value: "INC_BONUS", label: "เงินโบนัส (Bonus)" },
+          { value: "INC_COMMISSION", label: "ค่านายหน้า (Commission)" },
+          { value: "INC_INCENTIVE", label: "เบี้ยขยัน (Incentive)" },
+          { value: "INC_OTHER", label: "รายได้อื่นๆ (Other)" },
+        ]);
+      }
+    } catch (error) {
+      console.error("Failed to fetch earning types", error);
+    }
+  };
 
   const fetchData = async () => {
     try {
@@ -160,11 +187,38 @@ export default function PayrollEarningPage() {
     }
   };
 
-  const filteredEarnings = earnings.filter(item => 
-    item.employeeName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.reason.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.code.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const handleSyncOT = async () => {
+    if (!confirm(`ยืนยันการดึงข้อมูล OT ประจำเดือน ${selectedPeriod}? ระบบจะดึงข้อมูลจากการเข้างานและคำขอที่อนุมัติแล้ว`)) return;
+    setSyncLoading(true);
+    try {
+      const res = await fetch("/api/hrm/payroll/earning/sync-ot", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetMonth: selectedPeriod }),
+      });
+      const result = await res.json();
+      if (result.success) {
+        notify.success(result.message);
+        fetchData();
+      } else {
+        notify.error("เกิดข้อผิดพลาด", result.message);
+      }
+    } catch (error) {
+      notify.error("ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้");
+    } finally {
+      setSyncLoading(false);
+    }
+  };
+
+  const filteredEarnings = earnings.filter(item => {
+    const matchesSearch = item.employeeName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.reason.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.code.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesPeriod = !selectedPeriod || item.targetMonth === selectedPeriod;
+    
+    return matchesSearch && matchesPeriod;
+  });
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -193,12 +247,23 @@ export default function PayrollEarningPage() {
           <p className="text-slate-500 font-medium ml-1">บันทึกรายรับพิเศษ เบี้ยขยัน โบนัส และสวัสดิการแบบระบุคน</p>
         </div>
         
-        <Button 
-          onClick={() => setShowModal(true)}
-          className="h-12 px-6 bg-slate-900 hover:bg-emerald-600 text-white rounded-2xl font-black transition-all shadow-xl active:scale-95 gap-2"
-        >
-          <Plus size={18} /> เพิ่มรายรับพนักงาน
-        </Button>
+        <div className="flex gap-3">
+          <Button 
+            variant="outline"
+            onClick={handleSyncOT}
+            disabled={syncLoading}
+            className="h-12 px-6 border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-2xl font-black transition-all gap-2"
+          >
+            {syncLoading ? <Loader2 size={18} className="animate-spin" /> : <Clock size={18} />}
+            Import OT Hours
+          </Button>
+          <Button 
+            onClick={() => setShowModal(true)}
+            className="h-12 px-6 bg-slate-900 hover:bg-emerald-600 text-white rounded-2xl font-black transition-all shadow-xl active:scale-95 gap-2"
+          >
+            <Plus size={18} /> เพิ่มรายรับพนักงาน
+          </Button>
+        </div>
       </div>
 
       {/* Stats Quick View */}
@@ -250,9 +315,15 @@ export default function PayrollEarningPage() {
            <Button variant="outline" className="rounded-2xl border-slate-200 h-11 px-4 gap-2 font-bold text-slate-600">
               <Filter size={16} /> Filters
            </Button>
-           <Button variant="outline" className="rounded-2xl border-slate-200 h-11 px-4 gap-2 font-bold text-slate-600">
-              <Calendar size={16} /> Monthly
-           </Button>
+           <div className="flex items-center gap-3 bg-white px-4 py-1 rounded-xl border border-slate-200">
+              <Calendar size={16} className="text-emerald-500" />
+              <input 
+                type="month"
+                value={selectedPeriod}
+                onChange={(e) => setSelectedPeriod(e.target.value)}
+                className="bg-transparent font-black text-slate-700 outline-none cursor-pointer h-9"
+              />
+           </div>
         </div>
       </div>
 

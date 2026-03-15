@@ -13,7 +13,7 @@ export default function PayrollLayout({ children }: { children: React.ReactNode 
 
   const navItems = [
     {
-      title: "โครงสร้างตำแหน่ง",
+      title: "ระบบเงินเดือน",
       href: "/dashboard/hrm/payroll",
       icon: LineChart,
     },

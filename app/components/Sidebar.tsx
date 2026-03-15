@@ -276,7 +276,7 @@ export const MENU_DATA: MenuGroup[] = [
   },
   // ── 6. FINANCE & SALES ────────────────────────────────────────────────────
   {
-    groupName: "Finance & Sales",
+    groupName: "CRM & Sales",
     accentDot: "bg-emerald-500",
     themeClass: {
       activeBg: "bg-emerald-50",
@@ -288,6 +288,17 @@ export const MENU_DATA: MenuGroup[] = [
     },
     items: [
       {
+        id: "sale",
+        title: "ฝ่ายขาย & ลูกค้า",
+        icon: "TrendingUp",
+        subMenus: [
+          { name: "Inquiries", href: "/dashboard/crm/inquiries" },
+          { name: "Lead Management", href: "/dashboard/crm/lead" },
+          { name: "Quotation & Contract", href: "/" },
+          { name: "Customer Follow-up", href: "/" },
+        ],
+      },
+      {
         id: "cost-control",
         title: "ควบคุมงบประมาณ",
         icon: "Wallet",
@@ -296,6 +307,7 @@ export const MENU_DATA: MenuGroup[] = [
           { name: "Actual vs Budget", href: "/" },
         ],
       },
+
       {
         id: "accounting",
         title: "บัญชี & การเงิน",
@@ -304,16 +316,6 @@ export const MENU_DATA: MenuGroup[] = [
           { name: "Billing & Invoicing", href: "/" },
           { name: "AP / AR", href: "/" },
           { name: "Petty Cash", href: "/" },
-        ],
-      },
-      {
-        id: "sale",
-        title: "ฝ่ายขาย & ลูกค้า",
-        icon: "TrendingUp",
-        subMenus: [
-          { name: "Lead Management", href: "/dashboard/fs/lead" },
-          { name: "Quotation & Contract", href: "/" },
-          { name: "Customer Follow-up", href: "/" },
         ],
       },
     ],

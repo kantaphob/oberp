@@ -48,28 +48,28 @@ model JobLine {
 }
 
 model JobRole {
-  id             String        @id @default(uuid())
-  name           String        @unique
-  prefix         String        @unique
-  level          Int           @default(10)
-  departmentId   String?
-  jobLineId      String?
-  parentRoleId   String?
-  description    String?
-  minSalary      Float?
-  maxSalary      Float?
-  startingSalary Float?        @default(0)
-  defaultPaymentType PayType @default(MONTHLY)
-  isActive       Boolean       @default(true)
-  department     Department?   @relation(fields: [departmentId], references: [id])
-  jobLine        JobLine?      @relation(fields: [jobLineId], references: [id])
-  parentRole     JobRole?      @relation("RoleHierarchy", fields: [parentRoleId], references: [id])
-  assistantRoles JobRole[]     @relation("RoleHierarchy")
-  permissions    Permission[]
-  userProfiles   UserProfile[]
-  users          User[]
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @default(now()) @updatedAt
+  id                 String        @id @default(uuid())
+  name               String        @unique
+  prefix             String        @unique
+  level              Int           @default(10)
+  departmentId       String?
+  jobLineId          String?
+  parentRoleId       String?
+  description        String?
+  minSalary          Float?
+  maxSalary          Float?
+  startingSalary     Float?        @default(0)
+  defaultPaymentType PayType       @default(MONTHLY)
+  isActive           Boolean       @default(true)
+  department         Department?   @relation(fields: [departmentId], references: [id])
+  jobLine            JobLine?      @relation(fields: [jobLineId], references: [id])
+  parentRole         JobRole?      @relation("RoleHierarchy", fields: [parentRoleId], references: [id])
+  assistantRoles     JobRole[]     @relation("RoleHierarchy")
+  permissions        Permission[]
+  userProfiles       UserProfile[]
+  users              User[]
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @default(now()) @updatedAt
 
   @@map("core_job_roles")
 }
@@ -461,6 +461,7 @@ model Customer {
   @@map("crm_customers")
 }
 
+
 model ActivityLog {
   id          String   @id @default(uuid())
   action      String
@@ -781,7 +782,7 @@ model PayrollEarning {
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  code      String
+  code      String  @unique
   amount    Float
   reason    String
   refNumber String?
@@ -793,6 +794,28 @@ model PayrollEarning {
   updatedAt DateTime @updatedAt
 
   @@map("hrm_payroll_earnings")
+}
+
+model PayrollDeductionType {
+  id        String   @id @default(uuid())
+  code      String   @unique
+  name      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("hrm_payroll_deduction_types")
+}
+
+model PayrollEarningType {
+  id        String   @id @default(uuid())
+  code      String   @unique
+  name      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("hrm_payroll_earning_types")
 }
 
 enum EarningStatus {

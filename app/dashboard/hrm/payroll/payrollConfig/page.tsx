@@ -19,6 +19,10 @@ import {
   Coins,
   Clock,
   Settings2,
+  Plus,
+  Trash2,
+  ListPlus,
+  MinusCircle,
 } from "lucide-react";
 
 export default function PayrollConfigPage() {
@@ -35,8 +39,17 @@ export default function PayrollConfigPage() {
     latePenaltyPerMin: 5.0,
   });
 
+  // 🌟 State สำหรับประเภทรายรับ/การหัก
+  const [earningTypes, setEarningTypes] = useState<any[]>([]);
+  const [deductionTypes, setDeductionTypes] = useState<any[]>([]);
+  const [loadingTypes, setLoadingTypes] = useState(false);
+
+  const [newEarning, setNewEarning] = useState({ code: "", name: "" });
+  const [newDeduction, setNewDeduction] = useState({ code: "", name: "" });
+
   useEffect(() => {
     fetchConfig();
+    fetchTypes();
   }, []);
 
   const fetchConfig = async () => {
@@ -50,8 +63,117 @@ export default function PayrollConfigPage() {
       console.error("Failed to fetch config", error);
       notify.error("ไม่สามารถดึงข้อมูลการตั้งค่าได้");
     } finally {
+      // setLoading(false); // Move to fetchTypes if needed
+    }
+  };
+
+  const fetchTypes = async () => {
+    setLoadingTypes(true);
+    try {
+      const [eRes, dRes] = await Promise.all([
+        fetch("/api/hrm/payroll/config/earning-types"),
+        fetch("/api/hrm/payroll/config/deduction-types"),
+      ]);
+      const [eJson, dJson] = await Promise.all([eRes.json(), dRes.json()]);
+      
+      if (eJson.success) setEarningTypes(eJson.data);
+      if (dJson.success) setDeductionTypes(dJson.data);
+    } catch (error) {
+      console.error("Failed to fetch types", error);
+    } finally {
+      setLoadingTypes(false);
       setLoading(false);
     }
+  };
+
+  const handleAddEarning = async () => {
+    const code = newEarning.code.trim() || generateCodeFromName(newEarning.name) || (earningTypes.length + 1).toString();
+    
+    if (!newEarning.name) {
+      return notify.error("กรุณาระบุชื่อประเภทรายรับ");
+    }
+    try {
+      const res = await fetch("/api/hrm/payroll/config/earning-types", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...newEarning, code }),
+      });
+      const result = await res.json();
+      if (result.success) {
+        setEarningTypes([...earningTypes, result.data]);
+        setNewEarning({ code: "", name: "" });
+        notify.success("เพิ่มประเภทรายรับสำเร็จ");
+      } else {
+        notify.error("เกิดข้อผิดพลาด", result.message);
+      }
+    } catch (err) {
+      notify.error("ไม่สามารถเพิ่มประเภทรายรับได้");
+    }
+  };
+
+  const handleDeleteEarning = async (id: string) => {
+    try {
+      const res = await fetch(`/api/hrm/payroll/config/earning-types?id=${id}`, {
+        method: "DELETE",
+      });
+      const result = await res.json();
+      if (result.success) {
+        setEarningTypes(earningTypes.filter((t) => t.id !== id));
+        notify.success("ลบประเภทรายรับสำเร็จ");
+      }
+    } catch (err) {
+      notify.error("ไม่สามารถลบประเภทรายรับได้");
+    }
+  };
+
+  const handleAddDeduction = async () => {
+    const code = newDeduction.code.trim() || generateCodeFromName(newDeduction.name) || (deductionTypes.length + 1).toString();
+
+    if (!newDeduction.name) {
+      return notify.error("กรุณาระบุชื่อประเภทการหัก");
+    }
+    try {
+      const res = await fetch("/api/hrm/payroll/config/deduction-types", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...newDeduction, code }),
+      });
+      const result = await res.json();
+      if (result.success) {
+        setDeductionTypes([...deductionTypes, result.data]);
+        setNewDeduction({ code: "", name: "" });
+        notify.success("เพิ่มประเภทการหักสำเร็จ");
+      } else {
+        notify.error("เกิดข้อผิดพลาด", result.message);
+      }
+    } catch (err) {
+      notify.error("ไม่สามารถเพิ่มประเภทการหักได้");
+    }
+  };
+
+  const handleDeleteDeduction = async (id: string) => {
+    try {
+      const res = await fetch(`/api/hrm/payroll/config/deduction-types?id=${id}`, {
+        method: "DELETE",
+      });
+      const result = await res.json();
+      if (result.success) {
+        setDeductionTypes(deductionTypes.filter((t) => t.id !== id));
+        notify.success("ลบประเภทการหักสำเร็จ");
+      }
+    } catch (err) {
+      notify.error("ไม่สามารถลบประเภทการหักได้");
+    }
+  };
+
+  const generateCodeFromName = (name: string) => {
+    const generated = name
+      .trim()
+      .replace(/\s+/g, "_")
+      .replace(/[^\u0000-\u007F]/g, "") // Remove Thai/non-latin
+      .replace(/[^\w]/g, "")
+      .slice(0, 10);
+    return generated;
   };
 
   const handleSave = async () => {
@@ -326,6 +448,174 @@ export default function PayrollConfigPage() {
                   เท่า
                 </span>
               </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* ประเภทรายรับ */}
+        <Card className="border-t-4 border-t-indigo-500 shadow-sm hover:shadow-md transition-shadow">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <div className="p-2 bg-indigo-50 rounded-lg">
+                <ListPlus className="w-5 h-5 text-indigo-500" />
+              </div>
+              <CardTitle>ประเภทรายรับ (Earning Types)</CardTitle>
+            </div>
+            <CardDescription>จัดการรายการรายรับเพิ่มเติม เช่น โบนัส, ค่าคอมมิชชั่น</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex gap-2">
+              <div className="grid gap-1 flex-[1]">
+                <Label htmlFor="eCode" className="text-[10px] font-bold uppercase text-muted-foreground">Code</Label>
+                <Input
+                  id="eCode"
+                  placeholder="เช่น OT"
+                  value={newEarning.code}
+                  onChange={(e) => setNewEarning({ ...newEarning, code: e.target.value })}
+                  className="h-9"
+                />
+              </div>
+              <div className="grid gap-1 flex-[2]">
+                <Label htmlFor="eName" className="text-[10px] font-bold uppercase text-muted-foreground">ประเภทรายรับ</Label>
+                <Input
+                  id="eName"
+                  placeholder="เช่น ค่าล่วงเวลา"
+                  value={newEarning.name}
+                  onChange={(e) => {
+                    const name = e.target.value;
+                    const code = newEarning.code || generateCodeFromName(name);
+                    setNewEarning({ ...newEarning, name, code });
+                  }}
+                  className="h-9"
+                />
+              </div>
+              <Button onClick={handleAddEarning} size="icon" className="mt-5 h-9 w-9 shrink-0">
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <div className="border rounded-xl overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 border-b">
+                  <tr>
+                    <th className="px-3 py-2 text-left font-bold text-slate-500 uppercase text-[10px]">Code</th>
+                    <th className="px-3 py-2 text-left font-bold text-slate-500 uppercase text-[10px]">ชื่อประเภท</th>
+                    <th className="px-3 py-2 text-right"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {loadingTypes ? (
+                    <tr>
+                      <td colSpan={3} className="px-3 py-8 text-center text-muted-foreground italic">กำลังโหลด...</td>
+                    </tr>
+                  ) : earningTypes.length === 0 ? (
+                    <tr>
+                      <td colSpan={3} className="px-3 py-8 text-center text-muted-foreground italic">ยังไม่มีข้อมูล</td>
+                    </tr>
+                  ) : (
+                    earningTypes.map((t) => (
+                      <tr key={t.id} className="hover:bg-slate-50/50 transition-colors group">
+                        <td className="px-3 py-2 font-black text-indigo-600">{t.code}</td>
+                        <td className="px-3 py-2 font-medium">{t.name}</td>
+                        <td className="px-3 py-2 text-right">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-7 w-7 text-rose-500 hover:text-rose-700 hover:bg-rose-50 opacity-0 group-hover:opacity-100 transition-all"
+                            onClick={() => handleDeleteEarning(t.id)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* ประเภทการหัก */}
+        <Card className="border-t-4 border-t-rose-500 shadow-sm hover:shadow-md transition-shadow">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <div className="p-2 bg-rose-50 rounded-lg">
+                <MinusCircle className="w-5 h-5 text-rose-500" />
+              </div>
+              <CardTitle>ประเภทการหัก (Deduction Types)</CardTitle>
+            </div>
+            <CardDescription>จัดการรายการหักเงิน เช่น เงินค้ำประกัน, ค่าปรับ</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex gap-2">
+              <div className="grid gap-1 flex-[1]">
+                <Label htmlFor="dCode" className="text-[10px] font-bold uppercase text-muted-foreground">Code</Label>
+                <Input
+                  id="dCode"
+                  placeholder="เช่น FINE"
+                  value={newDeduction.code}
+                  onChange={(e) => setNewDeduction({ ...newDeduction, code: e.target.value })}
+                  className="h-9"
+                />
+              </div>
+              <div className="grid gap-1 flex-[2]">
+                <Label htmlFor="dName" className="text-[10px] font-bold uppercase text-muted-foreground">การหัก</Label>
+                <Input
+                  id="dName"
+                  placeholder="เช่น ค่าปรับวินัย"
+                  value={newDeduction.name}
+                  onChange={(e) => {
+                    const name = e.target.value;
+                    const code = newDeduction.code || generateCodeFromName(name);
+                    setNewDeduction({ ...newDeduction, name, code });
+                  }}
+                  className="h-9"
+                />
+              </div>
+              <Button onClick={handleAddDeduction} size="icon" className="mt-5 h-9 w-9 shrink-0">
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <div className="border rounded-xl overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 border-b">
+                  <tr>
+                    <th className="px-3 py-2 text-left font-bold text-slate-500 uppercase text-[10px]">Code</th>
+                    <th className="px-3 py-2 text-left font-bold text-slate-500 uppercase text-[10px]">ชื่อประเภท</th>
+                    <th className="px-3 py-2 text-right"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {loadingTypes ? (
+                    <tr>
+                      <td colSpan={3} className="px-3 py-8 text-center text-muted-foreground italic">กำลังโหลด...</td>
+                    </tr>
+                  ) : deductionTypes.length === 0 ? (
+                    <tr>
+                      <td colSpan={3} className="px-3 py-8 text-center text-muted-foreground italic">ยังไม่มีข้อมูล</td>
+                    </tr>
+                  ) : (
+                    deductionTypes.map((t) => (
+                      <tr key={t.id} className="hover:bg-slate-50/50 transition-colors group">
+                        <td className="px-3 py-2 font-black text-rose-600">{t.code}</td>
+                        <td className="px-3 py-2 font-medium">{t.name}</td>
+                        <td className="px-3 py-2 text-right">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-7 w-7 text-rose-500 hover:text-rose-700 hover:bg-rose-50 opacity-0 group-hover:opacity-100 transition-all"
+                            onClick={() => handleDeleteDeduction(t.id)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
           </CardContent>
         </Card>

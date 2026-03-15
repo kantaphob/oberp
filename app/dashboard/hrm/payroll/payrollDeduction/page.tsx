@@ -86,41 +86,73 @@ export default function OtherDeductionsPage() {
 
   const [formData, setFormData] = useState({
     userId: "",
-    code: "CODE1",
+    code: "",
     amount: "",
     reason: "",
     refNumber: "",
     targetMonth: new Date().toISOString().substring(0, 7),
   });
 
-  const deductionCodes = [
-    {
-      id: "CODE1",
-      label: "ค่าอุปกรณ์ PPE",
-      icon: HardHat,
-      color: "text-blue-500",
-      desc: "หักค่าอุปกรณ์ป้องกัน / ชุดยูนิฟอร์ม",
-    },
-    {
-      id: "CODE2",
-      label: "ค่าปรับ (Penalty)",
-      icon: ShieldAlert,
-      color: "text-rose-500",
-      desc: "ค่าปรับผิดระเบียบ / ทำทรัพย์สินเสียหาย",
-    },
-    {
-      id: "CODE3",
-      label: "เงินเบิกล่วงหน้า",
-      icon: Receipt,
-      color: "text-amber-500",
-      desc: "หักชำระคืนเงินเบิกล่วงหน้า (Advance)",
-    },
-  ];
+  const [deductionCodes, setDeductionCodes] = useState<any[]>([]);
+  const [codeSearch, setCodeSearch] = useState("");
+  const [userSearch, setUserSearch] = useState("");
+
+  const filteredCodes = deductionCodes.filter(c => 
+    c.id.toLowerCase().includes(codeSearch.toLowerCase()) || 
+    c.label.toLowerCase().includes(codeSearch.toLowerCase())
+  );
+
+  const filteredUsers = users.filter(u => {
+    const fullName = u.profile ? `${u.profile.firstName} ${u.profile.lastName}`.toLowerCase() : u.username.toLowerCase();
+    const search = userSearch.toLowerCase();
+    return fullName.includes(search) || u.username.toLowerCase().includes(search);
+  });
+
+  // 🌟 Auto-select if search results in exactly one match
+  useEffect(() => {
+    if (codeSearch && filteredCodes.length === 1 && formData.code !== filteredCodes[0].id) {
+      setFormData(prev => ({ ...prev, code: filteredCodes[0].id }));
+    }
+  }, [codeSearch, filteredCodes]);
+
+  useEffect(() => {
+    if (userSearch && filteredUsers.length === 1 && formData.userId !== filteredUsers[0].id) {
+      setFormData(prev => ({ ...prev, userId: filteredUsers[0].id }));
+    }
+  }, [userSearch, filteredUsers]);
 
   useEffect(() => {
     fetchData();
     fetchUsers();
+    fetchDeductionTypes();
   }, []);
+
+  const fetchDeductionTypes = async () => {
+    try {
+      const res = await fetch("/api/hrm/payroll/config/deduction-types");
+      const result = await res.json();
+      if (result.success && result.data.length > 0) {
+        const mapped = result.data.map((t: any) => ({
+          id: t.code,
+          label: t.name,
+          icon: Receipt, // Default icon
+          color: "text-rose-500",
+          desc: t.name
+        }));
+        setDeductionCodes(mapped);
+        if (formData.code === "CODE1") {
+          setFormData(prev => ({ ...prev, code: result.data[0].code }));
+        }
+      } else {
+        // Fallback
+        setDeductionCodes([
+          { id: "CODE1", label: "ค่าอุปกรณ์ PPE", icon: HardHat, color: "text-blue-500", desc: "หักค่าอุปกรณ์ป้องกัน" },
+        ]);
+      }
+    } catch (error) {
+      console.error("Failed to fetch deduction types", error);
+    }
+  };
 
   const fetchData = async () => {
     try {
@@ -435,64 +467,72 @@ export default function OtherDeductionsPage() {
 
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="grid grid-cols-2 gap-6">
-                <div className="col-span-2">
-                  <label className="text-[10px] font-black uppercase text-slate-400 mb-2 block tracking-widest">
+                <div className="col-span-2 space-y-3">
+                  <label className="text-[10px] font-black uppercase text-slate-400 mb-1 block tracking-widest">
                     พนักงานที่ถูกหักเงิน *
                   </label>
-                  <select
-                    required
-                    value={formData.userId}
-                    onChange={(e) =>
-                      setFormData({ ...formData, userId: e.target.value })
-                    }
-                    className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl font-black outline-none focus:border-rose-500 appearance-none cursor-pointer"
-                  >
-                    <option value="">-- ค้นหาและเลือกพนักงาน --</option>
-                    {users.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.profile
-                          ? `${u.profile.firstName} ${u.profile.lastName}`
-                          : u.username}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                      <input
+                        type="text"
+                        placeholder="ค้นหาชื่อหรือรหัสพนักงาน..."
+                        value={userSearch}
+                        onChange={(e) => setUserSearch(e.target.value)}
+                        className="w-full pl-10 pr-4 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold focus:border-rose-500 outline-none transition-all text-sm"
+                      />
+                    </div>
+                    <select
+                      required
+                      value={formData.userId}
+                      onChange={(e) => setFormData({ ...formData, userId: e.target.value })}
+                      className="flex-1 bg-white border-2 border-slate-200 p-4 rounded-2xl font-black outline-none focus:border-rose-500 cursor-pointer"
+                    >
+                      <option value="">-- เลือกพนักงาน ({filteredUsers.length}) --</option>
+                      {filteredUsers.map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.profile ? `${u.profile.firstName} ${u.profile.lastName}` : u.username}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  {userSearch && filteredUsers.length === 0 && (
+                    <p className="text-[10px] text-rose-500 font-bold italic animate-pulse">ไม่พบรายชื่อพนักงานที่ค้นหา</p>
+                  )}
                 </div>
 
-                <div className="col-span-2">
-                  <label className="text-[10px] font-black uppercase text-slate-400 mb-2 block tracking-widest">
+                <div className="col-span-2 space-y-3">
+                  <label className="text-[10px] font-black uppercase text-slate-400 mb-1 block tracking-widest">
                     รหัสรายการ (Deduction Code) *
                   </label>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    {deductionCodes.map((code) => {
-                      const Icon = code.icon;
-                      const isActive = formData.code === code.id;
-                      return (
-                        <button
-                          key={code.id}
-                          type="button"
-                          onClick={() =>
-                            setFormData({ ...formData, code: code.id })
-                          }
-                          className={`flex flex-col items-center justify-center p-5 border-2 rounded-[2rem] transition-all duration-300 gap-2
-                            ${isActive ? "bg-slate-900 border-slate-900 shadow-xl text-white transform scale-105" : "bg-white border-slate-100 text-slate-500 hover:border-slate-200 hover:bg-slate-50"}
-                          `}
-                        >
-                          <Icon
-                            size={24}
-                            className={isActive ? "text-white" : code.color}
-                          />
-                          <div className="text-center">
-                            <p className="text-[10px] font-black tracking-widest">
-                              {code.id}
-                            </p>
-                            <p className="text-xs font-bold mt-0.5">
-                              {code.label}
-                            </p>
-                          </div>
-                        </button>
-                      );
-                    })}
+                  <div className="flex gap-3">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                      <input
+                        type="text"
+                        placeholder="พิมพ์เพื่อค้นหารหัสหรือชื่อรายการ..."
+                        value={codeSearch}
+                        onChange={(e) => setCodeSearch(e.target.value)}
+                        className="w-full pl-10 pr-4 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold focus:border-rose-500 outline-none transition-all text-sm"
+                      />
+                    </div>
+                    <select
+                      required
+                      value={formData.code}
+                      onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                      className="flex-1 bg-white border-2 border-slate-200 p-4 rounded-2xl font-black outline-none focus:border-rose-500 cursor-pointer"
+                    >
+                      <option value="">-- เลือกรายการ ({filteredCodes.length}) --</option>
+                      {filteredCodes.map((code) => (
+                        <option key={code.id} value={code.id}>
+                          {code.id} : {code.label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
+                  {codeSearch && filteredCodes.length === 0 && (
+                    <p className="text-[10px] text-rose-500 font-bold italic">ไม่พบรหัสรายการที่ค้นหา</p>
+                  )}
                 </div>
               </div>
 
